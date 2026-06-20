@@ -12,9 +12,19 @@ namespace Config {
     constexpr uint16_t SERVO_MAX = 600;
     constexpr uint16_t SERVO_FREQ = 50;
 
-    constexpr uint8_t COXA_PIN = 0;
-    constexpr uint8_t FEMUR_PIN = 1;
-    constexpr uint8_t TIBIA_PIN = 2;
+    struct LegPins {
+        uint8_t coxa;
+        uint8_t femur;
+        uint8_t tibia;
+    };
+
+    // Pin Mappings: Front-Left, Front-Right, Hind-Left, Hind-Right
+    constexpr LegPins LEGS[4] = {
+        {0, 1, 2},    // Front-Left
+        {4, 5, 6},    // Front-Right
+        {8, 9, 10},   // Hind-Left
+        {12, 13, 14}  // Hind-Right
+    };
 
     // --- Link Lengths (mm) ---
     constexpr float L_COXA = 28.0f;
