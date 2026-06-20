@@ -71,6 +71,23 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <input type="range" id="sliderTB" class="w-full" min="-45" max="45" value="0">
                 </div>
             </div>
+
+            <div class="space-y-3 pt-3 border-t border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Gait Controls</h2>
+                <div class="grid grid-cols-3 gap-2 text-center font-semibold text-white">
+                    <button onclick="setGait('rotate_left')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">ROT L</button>
+                    <button onclick="setGait('forward')" class="bg-blue-600 hover:bg-blue-500 rounded py-2 px-1 text-[10px] shadow-md transition-colors">FWD</button>
+                    <button onclick="setGait('rotate_right')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">ROT R</button>
+                    
+                    <button onclick="setGait('strafe_left')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">STR L</button>
+                    <button onclick="setGait('stop')" class="bg-red-600 hover:bg-red-500 rounded py-2 px-1 text-[10px] shadow-md transition-colors">STOP</button>
+                    <button onclick="setGait('strafe_right')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">STR R</button>
+                    
+                    <div></div>
+                    <button onclick="setGait('backward')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">BACK</button>
+                    <div></div>
+                </div>
+            </div>
         </div>
         
         <div class="bg-gray-950 p-5 flex justify-between text-center rounded-b-xl border-t border-gray-700">
@@ -169,6 +186,31 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         // --- HARDWARE COMMS ---
         let sendTimeout;
+
+        function setGait(cmd) {
+            if (cmd === 'stop') {
+                document.getElementById('sliderX').value = 0;
+                document.getElementById('sliderY').value = -80;
+                document.getElementById('sliderZ').value = 28;
+                document.getElementById('sliderCX').value = 0;
+                document.getElementById('sliderFM').value = 0;
+                document.getElementById('sliderTB').value = 0;
+                updateSimulation(); // This will sync the true default stance to the ESP32
+            }
+            fetch(`/gait?cmd=${cmd}`)
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
+                    document.getElementById('connText').innerText = `Gait: ${cmd.toUpperCase()}`;
+                }
+            })
+            .catch(e => {
+                console.log('Error setting gait');
+                document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
+                document.getElementById('connText').innerText = "Disconnected";
+            });
+        }
+
         function sendToESP32(tx, ty, tz, oc, of, ot) {
             clearTimeout(sendTimeout);
             sendTimeout = setTimeout(() => {

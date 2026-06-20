@@ -9,6 +9,23 @@
 #include "ServoController.h"
 #include "WebInterface.h"
 
+#include "ServoController.h"
+#include "WebInterface.h"
+
+// --- Gait State Machine ---
+enum GaitState {
+  STOP,
+  FORWARD,
+  BACKWARD,
+  STRAFE_L,
+  STRAFE_R,
+  ROTATE_L,
+  ROTATE_R
+};
+GaitState currentGait = STOP;
+float gaitPhase = 0.0f;
+unsigned long lastGaitTime = 0;
+
 // --- Global Objects ---
 WebServer server(80);
 ServoController servoController;
@@ -36,6 +53,88 @@ void updateHardware() {
                         WiFi.localIP().toString().c_str());
 }
 
+void updateGait() {
+  if (currentGait == STOP) return;
+
+  unsigned long now = millis();
+  float dt = (now - lastGaitTime) / 1000.0f;
+  lastGaitTime = now;
+
+  float gaitSpeed = 1.5f; // 1 cycle per second
+  gaitPhase += dt * gaitSpeed;
+  if (gaitPhase >= 1.0f) gaitPhase -= 1.0f;
+
+  // Adjusted to be longer and lower so it's a stride rather than a march
+  float stepLength = 80.0f; 
+  float stepHeight = 15.0f;
+  
+  // Base posture
+  float baseX = tX; // Base X (typically 0)
+  float baseY = tY; // Base Y (typically -80)
+  float baseZ = tZ; // Base Z (typically 28)
+
+  for (int i = 0; i < 4; i++) {
+    // Trot gait phases: FL(0) and HR(3) are phase 0, FR(1) and HL(2) are phase 0.5
+    float legPhase = gaitPhase;
+    if (i == 1 || i == 2) {
+      legPhase += 0.5f;
+      if (legPhase >= 1.0f) legPhase -= 1.0f;
+    }
+
+    float x = baseX;
+    float y = baseY;
+    float z = baseZ;
+
+    float swingProgress = 0.0f;
+    float stanceProgress = 0.0f;
+
+    if (legPhase < 0.5f) {
+      swingProgress = legPhase * 2.0f; // 0 to 1
+      y = baseY + sin(swingProgress * PI) * stepHeight;
+    } else {
+      stanceProgress = (legPhase - 0.5f) * 2.0f; // 0 to 1
+      y = baseY;
+    }
+
+    // Direction modifiers (Inverted physically)
+    float dx = 0, dz = 0;
+    if (currentGait == FORWARD) { dx = -1; }
+    else if (currentGait == BACKWARD) { dx = 1; }
+    else if (currentGait == STRAFE_L) { dz = -1; }
+    else if (currentGait == STRAFE_R) { dz = 1; }
+    else if (currentGait == ROTATE_L) {
+      if (i == 0) { dx = 1; dz = -1; }
+      if (i == 1) { dx = -1; dz = -1; }
+      if (i == 2) { dx = 1; dz = 1; }
+      if (i == 3) { dx = -1; dz = 1; }
+    }
+    else if (currentGait == ROTATE_R) {
+      if (i == 0) { dx = -1; dz = 1; }
+      if (i == 1) { dx = 1; dz = 1; }
+      if (i == 2) { dx = -1; dz = -1; }
+      if (i == 3) { dx = 1; dz = -1; }
+    }
+
+    // Apply dx and dz based on phase using cosine for smoother acceleration/deceleration
+    if (legPhase < 0.5f) {
+      // Swing phase: move from -1 to 1 smoothly
+      float move = -cos(swingProgress * PI); 
+      x += move * dx * stepLength / 2.0f;
+      z += move * dz * stepLength / 2.0f;
+    } else {
+      // Stance phase: move from 1 to -1 smoothly
+      float move = cos(stanceProgress * PI); 
+      x += move * dx * stepLength / 2.0f;
+      z += move * dz * stepLength / 2.0f;
+    }
+
+    LegAngles angles = IKSolver::calculate(x, y, z, oC, oF, oT);
+    servoController.setAngle(Config::LEGS[i].coxa, angles.coxa);
+    servoController.setAngle(Config::LEGS[i].femur, angles.femur);
+    servoController.setAngle(Config::LEGS[i].tibia, angles.tibia);
+  }
+}
+
 // --- Web Server Endpoints ---
 void handleRoot() { server.send(200, "text/html", index_html); }
 
@@ -57,24 +156,33 @@ void handleIK() {
   // Serial.printf("Received IK Command: x=%.1f y=%.1f z=%.1f | oC=%.1f oF=%.1f oT=%.1f\n", tX, tY, tZ, oC, oF, oT);
 
   // Trigger hardware update
-  updateHardware();
+  if (currentGait == STOP) {
+    updateHardware();
+  }
 
   server.send(200, "text/plain", "OK");
 }
 
-// C:\Users\aragasa\.platformio\penv\Scripts\pio.exe run -t upload
+void handleGait() {
+  if (server.hasArg("cmd")) {
+    String cmd = server.arg("cmd");
+    if (cmd == "stop") {
+      currentGait = STOP;
+      updateHardware(); // go back to default stance
+    }
+    else if (cmd == "forward") currentGait = FORWARD;
+    else if (cmd == "backward") currentGait = BACKWARD;
+    else if (cmd == "strafe_left") currentGait = STRAFE_L;
+    else if (cmd == "strafe_right") currentGait = STRAFE_R;
+    else if (cmd == "rotate_left") currentGait = ROTATE_L;
+    else if (cmd == "rotate_right") currentGait = ROTATE_R;
+    
+    lastGaitTime = millis();
+  }
+  server.send(200, "text/plain", "OK");
+}
 
-// --- Main Setup ---
-void setup() {
-  Serial.begin(115200);
-
-  // Explicitly start I2C on pins 21 and 22 for ESP32
-  Wire.begin(21, 22);
-  Wire.setClock(400000); // Fast I2C for faster OLED updates
-
-  displayManager.begin();
-  servoController.begin();
-
+void TestServoInversion() {
   // // --- Configure Inversions ---
   // // Front-Left
   // servoController.setInvert(Config::LEGS[0].coxa, -1);
@@ -95,13 +203,30 @@ void setup() {
   // servoController.setInvert(Config::LEGS[3].coxa, -1);
   // servoController.setInvert(Config::LEGS[3].femur, -1);
   // servoController.setInvert(Config::LEGS[3].tibia, 1);
+}
 
-  // Initial positioning
-  // > 
-  tX = 0, 
-  tY = -80, 
+void InitialPose() {
+  tX = 0;
+  tY = -80;
   tZ = 28;
   updateHardware();
+}
+
+// C:\Users\aragasa\.platformio\penv\Scripts\pio.exe run -t upload
+
+// --- Main Setup ---
+void setup() {
+  Serial.begin(115200);
+
+  // Explicitly start I2C on pins 21 and 22 for ESP32
+  Wire.begin(21, 22);
+  Wire.setClock(400000); // Fast I2C for faster OLED updates
+
+  displayManager.begin();
+  servoController.begin();
+
+  // Initial positioning
+  InitialPose();
 
   // Connect to WiFi
   Serial.print("Connecting to WiFi: ");
@@ -124,7 +249,14 @@ void setup() {
   // Start Server
   server.on("/", handleRoot);
   server.on("/ik", handleIK);
+  server.on("/gait", handleGait);
   server.begin();
 }
 
-void loop() { server.handleClient(); }
+void loop() { 
+  server.handleClient(); 
+  if (currentGait != STOP) {
+    updateGait();
+    delay(10);
+  }
+}
