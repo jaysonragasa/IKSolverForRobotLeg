@@ -21,7 +21,7 @@ float oC = 0, oF = 0, oT = 0;
 void updateHardware() {
   LegAngles angles = IKSolver::calculate(tX, tY, tZ, oC, oF, oT);
 
-  Serial.printf("Calculated Angles: Coxa=%.1f Femur=%.1f Tibia=%.1f\n", angles.coxa, angles.femur, angles.tibia);
+  // Serial.printf("Calculated Angles: Coxa=%.1f Femur=%.1f Tibia=%.1f\n", angles.coxa, angles.femur, angles.tibia);
 
   // Send the ideal mathematical angles directly to all 4 legs.
   // The physical inversion is handled internally by the ServoController.
@@ -32,8 +32,8 @@ void updateHardware() {
   }
 
   bool isConnected = (WiFi.status() == WL_CONNECTED);
-  // displayManager.update(angles.coxa, angles.femur, angles.tibia, isConnected,
-  //                       WiFi.localIP().toString().c_str());
+  displayManager.update(angles.coxa, angles.femur, angles.tibia, isConnected,
+                        WiFi.localIP().toString().c_str());
 }
 
 // --- Web Server Endpoints ---
