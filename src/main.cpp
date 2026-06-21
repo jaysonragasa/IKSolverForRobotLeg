@@ -60,7 +60,7 @@ void updateGait() {
   float dt = (now - lastGaitTime) / 1000.0f;
   lastGaitTime = now;
 
-  float gaitSpeed = 1.5f; // 1 cycle per second
+  float gaitSpeed = 1.0f; // 1 cycle per second
   gaitPhase += dt * gaitSpeed;
   if (gaitPhase >= 1.0f) gaitPhase -= 1.0f;
 
@@ -126,6 +126,30 @@ void updateGait() {
       float move = cos(stanceProgress * PI); 
       x += move * dx * stepLength / 2.0f;
       z += move * dz * stepLength / 2.0f;
+    }
+
+    // --- CHEETAH KINEMATICS ---
+    if (currentGait == FORWARD || currentGait == BACKWARD) {
+      // 1. Centerline Tracking (Cat Walk)
+      // Foot moves outward (+Z) during swing to clear, inward (-Z) during stance to track a tight line.
+      float catWalkZ = 0;
+      if (legPhase < 0.5f) {
+        catWalkZ = sin(swingProgress * PI) * 15.0f; // swing out 15mm
+      } else {
+        catWalkZ = -sin(stanceProgress * PI) * 20.0f; // track in 20mm
+      }
+      z += catWalkZ;
+      
+      // 2. Shoulder / Spine Flexion (Pitching)
+      float flexY = 0;
+      if (i == 0 || i == 1) { 
+        // Front Legs: dip down 20mm at phase 0.5 (max forward reach)
+        flexY = (cos(legPhase * 2.0f * PI) - 1.0f) * 10.0f; 
+      } else { 
+        // Hind Legs: dip down 20mm at phase 0.0 / 1.0 (max backward push)
+        flexY = (-cos(legPhase * 2.0f * PI) - 1.0f) * 10.0f; 
+      }
+      y += flexY;
     }
 
     LegAngles angles = IKSolver::calculate(x, y, z, oC, oF, oT);
