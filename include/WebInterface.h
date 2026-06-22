@@ -97,6 +97,17 @@ const char index_html[] PROGMEM = R"rawliteral(
         </div>
     </div>
 
+    <!-- Floating Joysticks -->
+    <div class="absolute bottom-6 left-6 flex flex-col items-center bg-gray-900/80 p-3 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-md">
+        <span class="text-[10px] text-gray-400 mb-2 font-semibold tracking-wider">THROTTLE / YAW</span>
+        <canvas id="joyLeft" width="140" height="140" class="bg-gray-950 rounded-full shadow-inner border-2 border-gray-600 touch-none"></canvas>
+    </div>
+
+    <div class="absolute bottom-6 right-80 mr-6 flex flex-col items-center bg-gray-900/80 p-3 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-md">
+        <span class="text-[10px] text-gray-400 mb-2 font-semibold tracking-wider">PITCH / ROLL</span>
+        <canvas id="joyRight" width="140" height="140" class="bg-gray-950 rounded-full shadow-inner border-2 border-gray-600 touch-none"></canvas>
+    </div>
+
     <script>
         // --- THREE.JS SETUP ---
         const container = document.getElementById('canvas-container');
@@ -186,30 +197,110 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         // --- HARDWARE COMMS ---
         let sendTimeout;
+        let rcState = { t: 0, y: 0, p: 0, r: 0, s: 0 };
+        let rcInterval;
+        let isGaitActive = false;
 
         function setGait(cmd) {
             if (cmd === 'stop') {
+                isGaitActive = false;
+                rcState = { t: 0, y: 0, p: 0, r: 0, s: 0 };
                 document.getElementById('sliderX').value = 0;
                 document.getElementById('sliderY').value = -80;
                 document.getElementById('sliderZ').value = 28;
-                document.getElementById('sliderCX').value = 0;
-                document.getElementById('sliderFM').value = 0;
-                document.getElementById('sliderTB').value = 0;
-                updateSimulation(); // This will sync the true default stance to the ESP32
+                updateSimulation(); 
+            } else {
+                isGaitActive = true;
             }
-            fetch(`/gait?cmd=${cmd}`)
-            .then(response => {
-                if (response.ok) {
-                    document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
-                    document.getElementById('connText').innerText = `Gait: ${cmd.toUpperCase()}`;
-                }
-            })
-            .catch(e => {
-                console.log('Error setting gait');
-                document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
-                document.getElementById('connText').innerText = "Disconnected";
-            });
+            fetch(`/gait?cmd=${cmd}`);
         }
+
+        function resetRC() {
+            setGait('stop');
+            if(window.drawLeftJoy) window.drawLeftJoy(0, 0);
+            if(window.drawRightJoy) window.drawRightJoy(0, 0);
+        }
+
+        function initJoystick(canvasId, isLeft) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const radius = canvas.width / 2;
+            const center = { x: radius, y: radius };
+            const joyRadius = 25;
+            
+            let active = false;
+
+            function draw(nx, ny) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath(); ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
+                ctx.moveTo(center.x, 0); ctx.lineTo(center.x, canvas.height);
+                ctx.moveTo(0, center.y); ctx.lineTo(canvas.width, center.y); ctx.stroke();
+                
+                let px = center.x + nx * (radius - joyRadius);
+                let py = center.y - ny * (radius - joyRadius);
+                ctx.beginPath(); ctx.arc(px, py, joyRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#3b82f6'; ctx.fill();
+                ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 2; ctx.stroke();
+            }
+
+            if(isLeft) window.drawLeftJoy = draw; else window.drawRightJoy = draw;
+            draw(0, 0);
+            
+            function updateState(x, y) {
+                let nx = (x - center.x) / (radius - joyRadius);
+                let ny = -(y - center.y) / (radius - joyRadius);
+                let dist = Math.sqrt(nx*nx + ny*ny);
+                if (dist > 1.0) { nx /= dist; ny /= dist; }
+                
+                if (isLeft) { rcState.y = nx; rcState.t = ny; rcState.s = 0; } 
+                else { rcState.r = nx; rcState.p = ny; rcState.s = 0; }
+                draw(nx, ny);
+            }
+
+            function handleStart(e) { 
+                isGaitActive = false; // Break the preset gait macro if active
+                active = true; 
+                handleMove(e); 
+            }
+            function handleEnd(e) { active = false; updateState(center.x, center.y); }
+            function handleMove(e) {
+                if (!active) return;
+                e.preventDefault();
+                let rect = canvas.getBoundingClientRect();
+                let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                updateState(clientX - rect.left, clientY - rect.top);
+            }
+
+            canvas.addEventListener('mousedown', handleStart);
+            window.addEventListener('mouseup', handleEnd);
+            window.addEventListener('mousemove', handleMove);
+            canvas.addEventListener('touchstart', handleStart, {passive: false});
+            window.addEventListener('touchend', handleEnd);
+            window.addEventListener('touchmove', handleMove, {passive: false});
+        }
+
+        function startRCLoop() {
+            rcInterval = setInterval(() => {
+                if (isGaitActive) return; // Yield completely to backend Gait state
+                fetch(`/rc?t=${rcState.t.toFixed(2)}&y=${rcState.y.toFixed(2)}&p=${rcState.p.toFixed(2)}&r=${rcState.r.toFixed(2)}&s=${rcState.s.toFixed(2)}`)
+                .then(r => {
+                    if (r.ok) {
+                        document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
+                        document.getElementById('connText').innerText = "RC Connected";
+                    }
+                }).catch(e => {
+                    document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
+                    document.getElementById('connText').innerText = "Disconnected";
+                });
+            }, 100); // 10Hz RC Loop
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initJoystick('joyLeft', true);
+            initJoystick('joyRight', false);
+            startRCLoop();
+        });
 
         function sendToESP32(tx, ty, tz, oc, of, ot) {
             clearTimeout(sendTimeout);
