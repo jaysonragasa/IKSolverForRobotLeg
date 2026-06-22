@@ -20,5 +20,6 @@ private:
     void handleIK();
     void handleRC();
     void handleGait();
+    void handlePID();
     void handleCalibrate();
 };

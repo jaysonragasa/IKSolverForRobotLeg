@@ -6,6 +6,7 @@
 #include "GaitController.h"
 #include "Kinematics.h"
 #include "IMUManager.h"
+#include <Preferences.h>
 
 class RobotController {
 public:
@@ -18,6 +19,7 @@ public:
     // IK State setters
     void setIK(float tx, float ty, float tz, float oc, float of, float ot);
     void setRC(float t, float y, float p, float r, float s);
+    void setPID(float p, float i, float d);
 
     void calibrateIMU();
 
@@ -31,6 +33,7 @@ private:
     DisplayManager displayManager;
     GaitController gaitController;
     IMUManager imuManager;
+    Preferences preferences;
 
     // Current global IK state
     float tX, tY, tZ;

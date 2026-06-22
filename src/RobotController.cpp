@@ -16,6 +16,13 @@ void RobotController::begin() {
     displayManager.begin();
     servoController.begin();
 
+    // Load PID values from NVS
+    preferences.begin("robot", false);
+    float p = preferences.getFloat("pid_p", 1.0f);
+    float i = preferences.getFloat("pid_i", 0.0f);
+    float d = preferences.getFloat("pid_d", 0.0f);
+    gaitController.setPID(p, i, d);
+
     updateHardware(); // Initial pose
 }
 
@@ -24,6 +31,7 @@ void RobotController::update() {
     
     // Pass the calculated absolute body orientation down to the physics engine
     gaitController.setIMU(imuManager.getPitch(), imuManager.getRoll());
+    gaitController.setIMUGyro(imuManager.getGyroPitchRate(), imuManager.getGyroRollRate());
     
     gaitController.update(tX, tY, tZ, oC, oF, oT);
 }
@@ -36,6 +44,13 @@ void RobotController::setIK(float tx, float ty, float tz, float oc, float of, fl
 
 void RobotController::setRC(float t, float y, float p, float r, float s) {
     gaitController.setRC(t, y, p, r, s);
+}
+
+void RobotController::setPID(float p, float i, float d) {
+    gaitController.setPID(p, i, d);
+    preferences.putFloat("pid_p", p);
+    preferences.putFloat("pid_i", i);
+    preferences.putFloat("pid_d", d);
 }
 
 void RobotController::calibrateIMU() {

@@ -5,7 +5,9 @@
 
 GaitController::GaitController(ServoController& servoController)
     : servoController(servoController), rcThrottle(0), rcYaw(0), rcPitch(0), rcRoll(0), rcStrafe(0), 
-      imuPitch(0), imuRoll(0), gaitPhase(0.0f), lastGaitTime(0) {}
+      imuPitch(0), imuRoll(0), gyroPitchRate(0), gyroRollRate(0),
+      kp(1.0f), ki(0.0f), kd(0.0f), integralPitch(0), integralRoll(0),
+      gaitPhase(0.0f), lastGaitTime(0), pidMultiplier(1.0f) {}
 
 void GaitController::setRC(float t, float y, float p, float r, float s) {
     rcThrottle = t;
@@ -18,6 +20,17 @@ void GaitController::setRC(float t, float y, float p, float r, float s) {
 void GaitController::setIMU(float pitch, float roll) {
     imuPitch = pitch;
     imuRoll = roll;
+}
+
+void GaitController::setIMUGyro(float pitchRate, float rollRate) {
+    gyroPitchRate = pitchRate;
+    gyroRollRate = rollRate;
+}
+
+void GaitController::setPID(float p, float i, float d) {
+    kp = p;
+    ki = i;
+    kd = d;
 }
 
 void GaitController::update(float baseX, float baseY, float baseZ, float oC, float oF, float oT) {
@@ -61,6 +74,19 @@ void GaitController::update(float baseX, float baseY, float baseZ, float oC, flo
         }
     }
 
+    // ==========================================
+    // PID FADING LOGIC
+    // Automatically disable auto-balance
+    // when the joystick starts commanding a walk.
+    // ==========================================
+    if (moveSpeed > 0.05f) {
+        pidMultiplier -= dt * 2.0f; 
+    } else if (gaitPhase == 0.0f || gaitPhase == 0.5f) {
+        pidMultiplier += dt * 1.0f; 
+    }
+    if (pidMultiplier < 0.0f) pidMultiplier = 0.0f;
+    if (pidMultiplier > 1.0f) pidMultiplier = 1.0f;
+
     float stepLength = 80.0f; 
     float stepHeight = 15.0f;
     
@@ -76,18 +102,41 @@ void GaitController::update(float baseX, float baseY, float baseZ, float oC, flo
         float y = baseY;
         float z = baseZ;
 
-        // --- PITCH & ROLL (Active Suspension) ---
-        // We combine the user's manual joystick offset with the IMU's absolute gravity offset.
-        // The IMU gives angles in degrees. E.g., if tilted 10 degrees forward, imuPitch is 10.
-        // We multiply this by an aggressiveness factor (e.g. 1.0) to convert degrees to mm of leg extension/compression.
-        float imuAggressiveness = 1.0f; // mm per degree of tilt
+        // --- PITCH & ROLL (Simple Auto-Balance) ---
+        float targetPitch = s_pitch * 15.0f; 
+        float targetRoll  = s_roll * 15.0f;  
 
-        // Pitch: Front legs (0, 1) go up, Hind legs (2, 3) go down
-        float pitchOffset = (s_pitch * 20.0f) + (imuPitch * imuAggressiveness);
+        float errorPitch = imuPitch - targetPitch;
+        float errorRoll  = imuRoll - targetRoll;
+
+        // ==========================================
+        // ACTIVE SUSPENSION PID
+        // ==========================================
+        integralPitch += errorPitch * dt;
+        integralRoll  += errorRoll * dt;
+
+        float maxIntegral = 20.0f;
+        if (integralPitch > maxIntegral) integralPitch = maxIntegral;
+        if (integralPitch < -maxIntegral) integralPitch = -maxIntegral;
+        if (integralRoll > maxIntegral) integralRoll = maxIntegral;
+        if (integralRoll < -maxIntegral) integralRoll = -maxIntegral;
+
+        float derivativePitch = gyroPitchRate;
+        float derivativeRoll  = gyroRollRate;
+
+        float pitchOffset = ((kp * errorPitch) + (ki * integralPitch) + (kd * derivativePitch)) * pidMultiplier;
+        float rollOffset  = ((kp * errorRoll) + (ki * integralRoll) + (kd * derivativeRoll)) * pidMultiplier;
+
+        if (pidMultiplier == 0.0f) {
+            integralPitch = 0;
+            integralRoll = 0;
+        }
+
+        // Apply offsets
+        // Pitch: Front legs (0, 1) go up/down, Hind legs (2, 3) do opposite
         y += (i < 2) ? pitchOffset : -pitchOffset;
 
-        // Roll: Left legs (0, 2) go up, Right legs (1, 3) go down
-        float rollOffset = (s_roll * 20.0f) + (imuRoll * imuAggressiveness);
+        // Roll: Left legs (0, 2) go up/down, Right legs (1, 3) do opposite
         y += (i % 2 == 0) ? rollOffset : -rollOffset;
 
 

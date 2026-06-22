@@ -87,6 +87,22 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
 
             <div class="space-y-3 pt-3 border-t border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Active Suspension PID</h2>
+                <div>
+                    <div class="flex justify-between text-xs mb-1"><label>Kp (Stiffness)</label><span id="valKp">1.00</span></div>
+                    <input type="range" id="sliderKp" class="w-full pid-slider" min="0" max="5" step="0.1" value="1.0">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1"><label>Ki (Sag Correction)</label><span id="valKi">0.00</span></div>
+                    <input type="range" id="sliderKi" class="w-full pid-slider" min="0" max="2" step="0.05" value="0.0">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1"><label>Kd (Dampening)</label><span id="valKd">0.00</span></div>
+                    <input type="range" id="sliderKd" class="w-full pid-slider" min="0" max="2" step="0.05" value="0.0">
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-3 border-t border-gray-700">
                 <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Gait Controls</h2>
                 <div class="grid grid-cols-3 gap-2 text-center font-semibold text-white">
                     <button onclick="setGait('rotate_left')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">ROT L</button>
@@ -371,8 +387,22 @@ const char index_html[] PROGMEM = R"rawliteral(
             sendToESP32(tx, ty, tz, oc, of, ot);
         }
 
-        document.querySelectorAll('input[type="range"]').forEach(slider => {
+        document.querySelectorAll('input[type="range"]:not(.pid-slider)').forEach(slider => {
             slider.addEventListener('input', updateSimulation);
+        });
+
+        function updatePID() {
+            const p = parseFloat(document.getElementById('sliderKp').value);
+            const i = parseFloat(document.getElementById('sliderKi').value);
+            const d = parseFloat(document.getElementById('sliderKd').value);
+            document.getElementById('valKp').innerText = p.toFixed(2);
+            document.getElementById('valKi').innerText = i.toFixed(2);
+            document.getElementById('valKd').innerText = d.toFixed(2);
+            fetch(`/pid?p=${p}&i=${i}&d=${d}`);
+        }
+
+        document.querySelectorAll('.pid-slider').forEach(slider => {
+            slider.addEventListener('input', updatePID);
         });
 
         window.addEventListener('resize', () => {

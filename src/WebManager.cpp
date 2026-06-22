@@ -35,11 +35,12 @@ void WebManager::connectWiFi() {
 }
 
 void WebManager::setupRoutes() {
-    server.on("/", [this]() { handleRoot(); });
-    server.on("/ik", [this]() { handleIK(); });
-    server.on("/rc", [this]() { handleRC(); });
-    server.on("/calibrate", [this]() { handleCalibrate(); });
-    server.on("/gait", [this]() { handleGait(); });
+    server.on("/", HTTP_GET, [this]() { handleRoot(); });
+    server.on("/ik", HTTP_GET, [this]() { handleIK(); });
+    server.on("/rc", HTTP_GET, [this]() { handleRC(); });
+    server.on("/gait", HTTP_GET, [this]() { handleGait(); });
+    server.on("/pid", HTTP_GET, [this]() { handlePID(); });
+    server.on("/calibrate", HTTP_GET, [this]() { handleCalibrate(); });
 }
 
 void WebManager::handleRoot() { 
@@ -83,6 +84,16 @@ void WebManager::handleGait() {
         else if (cmd == "strafe_right") robot.setRC(0, 0, 0, 0, -1.0);
         else if (cmd == "rotate_left") robot.setRC(0, -1.0, 0, 0, 0);
         else if (cmd == "rotate_right") robot.setRC(0, 1.0, 0, 0, 0);
+    }
+    server.send(200, "text/plain", "OK");
+}
+
+void WebManager::handlePID() {
+    if (server.hasArg("p") && server.hasArg("i") && server.hasArg("d")) {
+        float p = server.arg("p").toFloat();
+        float i = server.arg("i").toFloat();
+        float d = server.arg("d").toFloat();
+        robot.setPID(p, i, d);
     }
     server.send(200, "text/plain", "OK");
 }

@@ -16,6 +16,10 @@ public:
     float getPitch() const { return pitch - pitchOffset; }
     float getRoll() const { return roll - rollOffset; }
 
+    // Returns raw rotation speeds for Derivative PID
+    float getGyroPitchRate() const { return gyroPitchRate; }
+    float getGyroRollRate() const { return gyroRollRate; }
+
     void calibrate();
 
 private:
@@ -26,6 +30,8 @@ private:
     float roll;
     float pitchOffset;
     float rollOffset;
+    float gyroPitchRate;
+    float gyroRollRate;
     
     unsigned long lastUpdateTime;
 
