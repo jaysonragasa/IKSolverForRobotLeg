@@ -38,6 +38,7 @@ void WebManager::setupRoutes() {
     server.on("/", [this]() { handleRoot(); });
     server.on("/ik", [this]() { handleIK(); });
     server.on("/rc", [this]() { handleRC(); });
+    server.on("/calibrate", [this]() { handleCalibrate(); });
     server.on("/gait", [this]() { handleGait(); });
 }
 
@@ -83,5 +84,10 @@ void WebManager::handleGait() {
         else if (cmd == "rotate_left") robot.setRC(0, -1.0, 0, 0, 0);
         else if (cmd == "rotate_right") robot.setRC(0, 1.0, 0, 0, 0);
     }
+    server.send(200, "text/plain", "OK");
+}
+
+void WebManager::handleCalibrate() {
+    robot.calibrateIMU();
     server.send(200, "text/plain", "OK");
 }

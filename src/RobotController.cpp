@@ -7,7 +7,10 @@ RobotController::RobotController()
 
 void RobotController::begin() {
     // Explicitly start I2C on pins 21 and 22 for ESP32
-    Wire.begin(21, 22);
+    // Wire.begin(21, 22); is already called inside imuManager.init() now, 
+    // but doing it here or there is fine.
+    imuManager.init();
+    
     Wire.setClock(400000); // Fast I2C for faster OLED updates
 
     displayManager.begin();
@@ -17,6 +20,11 @@ void RobotController::begin() {
 }
 
 void RobotController::update() {
+    imuManager.update();
+    
+    // Pass the calculated absolute body orientation down to the physics engine
+    gaitController.setIMU(imuManager.getPitch(), imuManager.getRoll());
+    
     gaitController.update(tX, tY, tZ, oC, oF, oT);
 }
 
@@ -28,6 +36,10 @@ void RobotController::setIK(float tx, float ty, float tz, float oc, float of, fl
 
 void RobotController::setRC(float t, float y, float p, float r, float s) {
     gaitController.setRC(t, y, p, r, s);
+}
+
+void RobotController::calibrateIMU() {
+    imuManager.calibrate();
 }
 
 void RobotController::updateHardware() {

@@ -5,6 +5,7 @@
 #include "DisplayManager.h"
 #include "GaitController.h"
 #include "Kinematics.h"
+#include "IMUManager.h"
 
 class RobotController {
 public:
@@ -18,6 +19,8 @@ public:
     void setIK(float tx, float ty, float tz, float oc, float of, float ot);
     void setRC(float t, float y, float p, float r, float s);
 
+    void calibrateIMU();
+
     // Getters for display
     float getCoxaAngle(int legIndex) const;
     float getFemurAngle(int legIndex) const;
@@ -27,6 +30,7 @@ private:
     ServoController servoController;
     DisplayManager displayManager;
     GaitController gaitController;
+    IMUManager imuManager;
 
     // Current global IK state
     float tX, tY, tZ;

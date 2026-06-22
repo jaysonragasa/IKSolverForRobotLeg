@@ -4,7 +4,8 @@
 #include <math.h>
 
 GaitController::GaitController(ServoController& servoController)
-    : servoController(servoController), rcThrottle(0), rcYaw(0), rcPitch(0), rcRoll(0), rcStrafe(0), gaitPhase(0.0f), lastGaitTime(0) {}
+    : servoController(servoController), rcThrottle(0), rcYaw(0), rcPitch(0), rcRoll(0), rcStrafe(0), 
+      imuPitch(0), imuRoll(0), gaitPhase(0.0f), lastGaitTime(0) {}
 
 void GaitController::setRC(float t, float y, float p, float r, float s) {
     rcThrottle = t;
@@ -12,6 +13,11 @@ void GaitController::setRC(float t, float y, float p, float r, float s) {
     rcPitch = p;
     rcRoll = r;
     rcStrafe = s;
+}
+
+void GaitController::setIMU(float pitch, float roll) {
+    imuPitch = pitch;
+    imuRoll = roll;
 }
 
 void GaitController::update(float baseX, float baseY, float baseZ, float oC, float oF, float oT) {
@@ -70,13 +76,18 @@ void GaitController::update(float baseX, float baseY, float baseZ, float oC, flo
         float y = baseY;
         float z = baseZ;
 
-        // --- PITCH & ROLL (Static offsets independent of walking phase) ---
+        // --- PITCH & ROLL (Active Suspension) ---
+        // We combine the user's manual joystick offset with the IMU's absolute gravity offset.
+        // The IMU gives angles in degrees. E.g., if tilted 10 degrees forward, imuPitch is 10.
+        // We multiply this by an aggressiveness factor (e.g. 1.0) to convert degrees to mm of leg extension/compression.
+        float imuAggressiveness = 1.0f; // mm per degree of tilt
+
         // Pitch: Front legs (0, 1) go up, Hind legs (2, 3) go down
-        float pitchOffset = s_pitch * 20.0f; // max 20mm
+        float pitchOffset = (s_pitch * 20.0f) + (imuPitch * imuAggressiveness);
         y += (i < 2) ? pitchOffset : -pitchOffset;
 
         // Roll: Left legs (0, 2) go up, Right legs (1, 3) go down
-        float rollOffset = s_roll * 20.0f; // max 20mm
+        float rollOffset = (s_roll * 20.0f) + (imuRoll * imuAggressiveness);
         y += (i % 2 == 0) ? rollOffset : -rollOffset;
 
 

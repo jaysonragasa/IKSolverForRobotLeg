@@ -18,6 +18,20 @@ const char index_html[] PROGMEM = R"rawliteral(
         #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
         .panel { position: absolute; top: 20px; right: 20px; max-height: 90vh; overflow-y: auto; }
         input[type=range] { accent-color: #3b82f6; }
+        .btn-cal {
+            grid-column: 1 / -1;
+            padding: 10px;
+            margin-top: 10px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+        }
+        .btn-cal:active { transform: scale(0.95); }
     </style>
 </head>
 <body class="text-white font-sans antialiased selection:bg-blue-500">
@@ -87,6 +101,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <button onclick="setGait('backward')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">BACK</button>
                     <div></div>
                 </div>
+                <button class="btn-cal" onclick="calibrate()">📐 Calibrate Level</button>
             </div>
         </div>
         
@@ -215,6 +230,10 @@ const char index_html[] PROGMEM = R"rawliteral(
             fetch(`/gait?cmd=${cmd}`);
         }
 
+        function calibrate() {
+            fetch('/calibrate');
+        }
+
         function resetRC() {
             setGait('stop');
             if(window.drawLeftJoy) window.drawLeftJoy(0, 0);
@@ -276,8 +295,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             window.addEventListener('mouseup', handleEnd);
             window.addEventListener('mousemove', handleMove);
             canvas.addEventListener('touchstart', handleStart, {passive: false});
-            window.addEventListener('touchend', handleEnd);
-            window.addEventListener('touchmove', handleMove, {passive: false});
+            canvas.addEventListener('touchend', handleEnd);
+            canvas.addEventListener('touchmove', handleMove, {passive: false});
         }
 
         function startRCLoop() {
