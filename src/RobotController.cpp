@@ -3,7 +3,7 @@
 #include <WiFi.h>
 
 RobotController::RobotController() 
-    : gaitController(servoController), tX(0), tY(-80), tZ(28), oC(0), oF(0), oT(0) {}
+    : gaitController(servoController), tX(0), tY(-100), tZ(28) {}
 
 void RobotController::begin() {
     // Explicitly start I2C on pins 21 and 22 for ESP32
@@ -23,6 +23,19 @@ void RobotController::begin() {
     float d = preferences.getFloat("pid_d", 0.0f);
     gaitController.setPID(p, i, d);
 
+    float db = preferences.getFloat("imu_db", 0.0f);
+    gaitController.setIMUDeadband(db);
+
+    bool ab = preferences.getBool("ab_en", false);
+    bool pidEn = preferences.getBool("pid_en", false);
+    gaitController.setToggles(ab, pidEn);
+
+    for (int ch = 0; ch < 16; ch++) {
+        String key = "off_" + String(ch);
+        float off = preferences.getFloat(key.c_str(), 0.0f);
+        servoController.setOffset(ch, off);
+    }
+
     updateHardware(); // Initial pose
 }
 
@@ -33,12 +46,11 @@ void RobotController::update() {
     gaitController.setIMU(imuManager.getPitch(), imuManager.getRoll());
     gaitController.setIMUGyro(imuManager.getGyroPitchRate(), imuManager.getGyroRollRate());
     
-    gaitController.update(tX, tY, tZ, oC, oF, oT);
+    gaitController.update(tX, tY, tZ);
 }
 
-void RobotController::setIK(float tx, float ty, float tz, float oc, float of, float ot) {
+void RobotController::setIK(float tx, float ty, float tz) {
     tX = tx; tY = ty; tZ = tz;
-    oC = oc; oF = of; oT = ot;
     // The gaitController will constantly calculate stance even when standing still.
 }
 
@@ -47,10 +59,27 @@ void RobotController::setRC(float t, float y, float p, float r, float s) {
 }
 
 void RobotController::setPID(float p, float i, float d) {
-    gaitController.setPID(p, i, d);
     preferences.putFloat("pid_p", p);
     preferences.putFloat("pid_i", i);
     preferences.putFloat("pid_d", d);
+    gaitController.setPID(p, i, d);
+}
+
+void RobotController::setIMUDeadband(float db) {
+    preferences.putFloat("imu_db", db);
+    gaitController.setIMUDeadband(db);
+}
+
+void RobotController::setToggles(bool autoBal, bool pidEn) {
+    gaitController.setToggles(autoBal, pidEn);
+    preferences.putBool("ab_en", autoBal);
+    preferences.putBool("pid_en", pidEn);
+}
+
+void RobotController::setServoOffset(int channel, float offset) {
+    servoController.setOffset(channel, offset);
+    String key = "off_" + String(channel);
+    preferences.putFloat(key.c_str(), offset);
 }
 
 void RobotController::calibrateIMU() {
@@ -58,7 +87,7 @@ void RobotController::calibrateIMU() {
 }
 
 void RobotController::updateHardware() {
-    LegAngles angles = IKSolver::calculate(tX, tY, tZ, oC, oF, oT);
+    LegAngles angles = IKSolver::calculate(tX, tY, tZ, 0, 0, 0);
 
     for (int i = 0; i < 4; i++) {
         servoController.setAngle(Config::LEGS[i].coxa, angles.coxa);

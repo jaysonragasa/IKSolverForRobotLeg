@@ -21,5 +21,8 @@ private:
     void handleRC();
     void handleGait();
     void handlePID();
+    void handleDeadband();
     void handleCalibrate();
+    void handleOffset();
+    void handleToggle();
 };

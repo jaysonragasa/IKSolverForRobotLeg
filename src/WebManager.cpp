@@ -40,7 +40,10 @@ void WebManager::setupRoutes() {
     server.on("/rc", HTTP_GET, [this]() { handleRC(); });
     server.on("/gait", HTTP_GET, [this]() { handleGait(); });
     server.on("/pid", HTTP_GET, [this]() { handlePID(); });
+    server.on("/deadband", HTTP_GET, [this]() { handleDeadband(); });
     server.on("/calibrate", HTTP_GET, [this]() { handleCalibrate(); });
+    server.on("/offset", HTTP_GET, [this]() { handleOffset(); });
+    server.on("/toggle", HTTP_GET, [this]() { handleToggle(); });
 }
 
 void WebManager::handleRoot() { 
@@ -49,16 +52,12 @@ void WebManager::handleRoot() {
 
 void WebManager::handleIK() {
     float tx = 0, ty = -80, tz = 28;
-    float oc = 0, of = 0, ot = 0;
 
     if (server.hasArg("x")) tx = server.arg("x").toFloat();
     if (server.hasArg("y")) ty = server.arg("y").toFloat();
     if (server.hasArg("z")) tz = server.arg("z").toFloat();
-    if (server.hasArg("cx")) oc = server.arg("cx").toFloat();
-    if (server.hasArg("fm")) of = server.arg("fm").toFloat();
-    if (server.hasArg("tb")) ot = server.arg("tb").toFloat();
 
-    robot.setIK(tx, ty, tz, oc, of, ot);
+    robot.setIK(tx, ty, tz);
     server.send(200, "text/plain", "OK");
 }
 
@@ -94,11 +93,41 @@ void WebManager::handlePID() {
         float i = server.arg("i").toFloat();
         float d = server.arg("d").toFloat();
         robot.setPID(p, i, d);
+        server.send(200, "text/plain", "PID OK");
+    } else {
+        server.send(400, "text/plain", "Bad Args");
     }
-    server.send(200, "text/plain", "OK");
+}
+
+void WebManager::handleDeadband() {
+    if (server.hasArg("v")) {
+        float db = server.arg("v").toFloat();
+        robot.setIMUDeadband(db);
+        server.send(200, "text/plain", "Deadband OK");
+    } else {
+        server.send(400, "text/plain", "Bad Args");
+    }
 }
 
 void WebManager::handleCalibrate() {
     robot.calibrateIMU();
+    server.send(200, "text/plain", "OK");
+}
+
+void WebManager::handleOffset() {
+    if (server.hasArg("ch") && server.hasArg("val")) {
+        int ch = server.arg("ch").toInt();
+        float val = server.arg("val").toFloat();
+        robot.setServoOffset(ch, val);
+    }
+    server.send(200, "text/plain", "OK");
+}
+
+void WebManager::handleToggle() {
+    if (server.hasArg("ab") && server.hasArg("pid")) {
+        bool ab = (server.arg("ab") == "1");
+        bool pid = (server.arg("pid") == "1");
+        robot.setToggles(ab, pid);
+    }
     server.send(200, "text/plain", "OK");
 }

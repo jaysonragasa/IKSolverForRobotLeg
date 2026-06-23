@@ -5,7 +5,7 @@
 
 GaitController::GaitController(ServoController& servoController)
     : servoController(servoController), rcThrottle(0), rcYaw(0), rcPitch(0), rcRoll(0), rcStrafe(0), 
-      imuPitch(0), imuRoll(0), gyroPitchRate(0), gyroRollRate(0),
+      imuPitch(0), imuRoll(0), gyroPitchRate(0), gyroRollRate(0), imuDeadband(0.0f),
       kp(1.0f), ki(0.0f), kd(0.0f), integralPitch(0), integralRoll(0),
       gaitPhase(0.0f), lastGaitTime(0), pidMultiplier(1.0f) {}
 
@@ -33,7 +33,16 @@ void GaitController::setPID(float p, float i, float d) {
     kd = d;
 }
 
-void GaitController::update(float baseX, float baseY, float baseZ, float oC, float oF, float oT) {
+void GaitController::setIMUDeadband(float db) {
+    imuDeadband = db;
+}
+
+void GaitController::setToggles(bool autoBal, bool pid) {
+    autoBalanceEnabled = autoBal;
+    pidEnabled = pid;
+}
+
+void GaitController::update(float baseX, float baseY, float baseZ) {
     unsigned long now = millis();
     float dt = (now - lastGaitTime) / 1000.0f;
     lastGaitTime = now;
@@ -102,34 +111,48 @@ void GaitController::update(float baseX, float baseY, float baseZ, float oC, flo
         float y = baseY;
         float z = baseZ;
 
-        // --- PITCH & ROLL (Simple Auto-Balance) ---
-        float targetPitch = s_pitch * 15.0f; 
-        float targetRoll  = s_roll * 15.0f;  
+        // --- PITCH & ROLL (Auto-Balance) ---
+        float pitchOffset = 0;
+        float rollOffset = 0;
 
-        float errorPitch = imuPitch - targetPitch;
-        float errorRoll  = imuRoll - targetRoll;
+        if (autoBalanceEnabled) {
+            float targetPitch = s_pitch * 15.0f; 
+            float targetRoll  = s_roll * 15.0f;  
 
-        // ==========================================
-        // ACTIVE SUSPENSION PID
-        // ==========================================
-        integralPitch += errorPitch * dt;
-        integralRoll  += errorRoll * dt;
+            float errorPitch = imuPitch - targetPitch;
+            float errorRoll  = imuRoll - targetRoll;
 
-        float maxIntegral = 20.0f;
-        if (integralPitch > maxIntegral) integralPitch = maxIntegral;
-        if (integralPitch < -maxIntegral) integralPitch = -maxIntegral;
-        if (integralRoll > maxIntegral) integralRoll = maxIntegral;
-        if (integralRoll < -maxIntegral) integralRoll = -maxIntegral;
+            if (fabs(errorPitch) < imuDeadband) errorPitch = 0.0f;
+            if (fabs(errorRoll) < imuDeadband) errorRoll = 0.0f;
 
-        float derivativePitch = gyroPitchRate;
-        float derivativeRoll  = gyroRollRate;
+            if (pidEnabled) {
+                // ==========================================
+                // ACTIVE SUSPENSION PID
+                // ==========================================
+                integralPitch += errorPitch * dt;
+                integralRoll  += errorRoll * dt;
 
-        float pitchOffset = ((kp * errorPitch) + (ki * integralPitch) + (kd * derivativePitch)) * pidMultiplier;
-        float rollOffset  = ((kp * errorRoll) + (ki * integralRoll) + (kd * derivativeRoll)) * pidMultiplier;
+                float maxIntegral = 20.0f;
+                if (integralPitch > maxIntegral) integralPitch = maxIntegral;
+                if (integralPitch < -maxIntegral) integralPitch = -maxIntegral;
+                if (integralRoll > maxIntegral) integralRoll = maxIntegral;
+                if (integralRoll < -maxIntegral) integralRoll = -maxIntegral;
 
-        if (pidMultiplier == 0.0f) {
-            integralPitch = 0;
-            integralRoll = 0;
+                float derivativePitch = gyroPitchRate;
+                float derivativeRoll  = gyroRollRate;
+
+                pitchOffset = ((kp * errorPitch) + (ki * integralPitch) + (kd * derivativePitch)) * pidMultiplier;
+                rollOffset  = ((kp * errorRoll) + (ki * integralRoll) + (kd * derivativeRoll)) * pidMultiplier;
+
+                if (pidMultiplier == 0.0f) {
+                    integralPitch = 0;
+                    integralRoll = 0;
+                }
+            } else {
+                // Pure proportional auto-balance using only the Kp slider (no fading, no dampening)
+                pitchOffset = errorPitch * 1.0f; // Hardcoded stiffness of 1.0 when PID is off
+                rollOffset  = errorRoll * 1.0f;
+            }
         }
 
         // Apply offsets
@@ -194,7 +217,7 @@ void GaitController::update(float baseX, float baseY, float baseZ, float oC, flo
             //y += flexY;
         }
 
-        LegAngles angles = IKSolver::calculate(x, y, z, oC, oF, oT);
+        LegAngles angles = IKSolver::calculate(x, y, z, 0, 0, 0);
         servoController.setAngle(Config::LEGS[i].coxa, angles.coxa);
         servoController.setAngle(Config::LEGS[i].femur, angles.femur);
         servoController.setAngle(Config::LEGS[i].tibia, angles.tibia);

@@ -17,9 +17,12 @@ public:
     void updateHardware();
     
     // IK State setters
-    void setIK(float tx, float ty, float tz, float oc, float of, float ot);
+    void setIK(float tx, float ty, float tz);
     void setRC(float t, float y, float p, float r, float s);
     void setPID(float p, float i, float d);
+    void setIMUDeadband(float db);
+    void setToggles(bool autoBal, bool pid);
+    void setServoOffset(int channel, float offset);
 
     void calibrateIMU();
 

@@ -34,9 +34,24 @@ void ServoController::setEnabled(uint8_t pin, int8_t enabled) {
   }
 }
 
+void ServoController::setOffset(uint8_t pin, float offset) {
+  if (pin < 16) {
+    _servoOffsets[pin] = offset;
+  }
+}
+
+float ServoController::getOffset(uint8_t pin) const {
+  if (pin < 16)
+    return _servoOffsets[pin];
+  return 0.0f;
+}
+
 void ServoController::setAngle(uint8_t pin, float angle) {
   if (pin >= 16)
     return;
+
+  // Apply calibration offset
+  angle += _servoOffsets[pin];
 
   // Check if servo is disabled
   if (_enabled[pin] == 0) {

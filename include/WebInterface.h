@@ -8,138 +8,202 @@ const char index_html[] PROGMEM = R"rawliteral(
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3DOF Dog Leg Simulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Robot Controller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111827; }
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
-        .panel { position: absolute; top: 20px; right: 20px; max-height: 90vh; overflow-y: auto; }
-        input[type=range] { accent-color: #3b82f6; }
-        .btn-cal {
-            grid-column: 1 / -1;
-            padding: 10px;
-            margin-top: 10px;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
-        }
-        .btn-cal:active { transform: scale(0.95); }
+        body { margin: 0; overflow: hidden; background-color: #111827; touch-action: none; font-family: sans-serif; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        /* UI Layer */
+        .ui-layer { position: absolute; z-index: 10; pointer-events: none; }
+        .ui-layer > * { pointer-events: auto; }
+        
+        .panel { background: rgba(31, 41, 55, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(75, 85, 99, 0.4); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        
+        input[type=range] { accent-color: #3b82f6; width: 100%; }
+        
+        .btn-gait { background: rgba(55, 65, 81, 0.9); border: 1px solid #4b5563; border-radius: 0.5rem; color: #d1d5db; font-size: 11px; font-weight: bold; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.1s; }
+        .btn-gait:active { transform: scale(0.95); background: #3b82f6; color: white; border-color: #60a5fa; }
+        
+        .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; pointer-events: auto; }
+        .modal { background: #1f2937; width: 90%; max-width: 450px; max-height: 85vh; overflow-y: auto; border-radius: 1.5rem; padding: 1.5rem; border: 1px solid #374151; box-shadow: 0 25px 50px -12px rgba(0,0,0,1); }
+        
+        .toggle-btn { background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold; font-size: 0.75rem; transition: all 0.2s; }
+        .toggle-btn.active { background: #3b82f6; color: white; border-color: #60a5fa; box-shadow: 0 0 15px rgba(59,130,246,0.5); }
     </style>
 </head>
-<body class="text-white font-sans antialiased selection:bg-blue-500">
-
+<body class="text-white antialiased">
     <div id="canvas-container"></div>
 
-    <div class="panel w-80 bg-gray-800/90 backdrop-blur-md rounded-xl shadow-2xl border border-gray-700 flex flex-col">
-        <div class="p-5 border-b border-gray-700 flex justify-between items-center">
-            <div>
-                <h1 class="text-xl font-bold text-blue-400">ESP32 Dog Leg</h1>
-                <p class="text-gray-400 text-xs mt-1">Front-Right Controller</p>
+    <!-- Top Header -->
+    <div class="ui-layer top-4 left-4 panel p-3 flex items-center space-x-3">
+        <div>
+            <h1 class="text-sm font-bold text-blue-400">ESP32 Dog Leg</h1>
+            <div class="flex items-center space-x-1 mt-0.5">
+                <span id="connDot" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                <span id="connText" class="text-[9px] text-gray-400 uppercase tracking-wider">Disconnected</span>
             </div>
-            <!-- Hardware Connection Status Light -->
-            <div class="flex flex-col items-end">
-                <div class="flex items-center space-x-2">
-                    <span id="connDot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-                </div>
-                <span id="connText" class="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">Disconnected</span>
-            </div>
-        </div>
-        
-        <div class="p-5 space-y-5 flex-1">
-            <div class="space-y-3">
-                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Target Position</h2>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>X (Forward)</label><span id="valX">0 mm</span></div>
-                    <input type="range" id="sliderX" class="w-full" min="-60" max="60" value="0">
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Y (Vertical)</label><span id="valY">-80 mm</span></div>
-                    <input type="range" id="sliderY" class="w-full" min="-120" max="-30" value="-80">
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Z (Lateral)</label><span id="valZ">28 mm</span></div>
-                    <input type="range" id="sliderZ" class="w-full" min="-20" max="60" value="28">
-                </div>
-            </div>
-
-            <div class="space-y-3 pt-3 border-t border-gray-700">
-                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Joint Offsets</h2>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Coxa Offset</label><span id="valCX">0&deg;</span></div>
-                    <input type="range" id="sliderCX" class="w-full" min="-45" max="45" value="0">
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Femur Offset</label><span id="valFM">0&deg;</span></div>
-                    <input type="range" id="sliderFM" class="w-full" min="-45" max="45" value="0">
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Tibia Offset</label><span id="valTB">0&deg;</span></div>
-                    <input type="range" id="sliderTB" class="w-full" min="-45" max="45" value="0">
-                </div>
-            </div>
-
-            <div class="space-y-3 pt-3 border-t border-gray-700">
-                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Active Suspension PID</h2>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Kp (Stiffness)</label><span id="valKp">1.00</span></div>
-                    <input type="range" id="sliderKp" class="w-full pid-slider" min="0" max="5" step="0.1" value="1.0">
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Ki (Sag Correction)</label><span id="valKi">0.00</span></div>
-                    <input type="range" id="sliderKi" class="w-full pid-slider" min="0" max="2" step="0.05" value="0.0">
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs mb-1"><label>Kd (Dampening)</label><span id="valKd">0.00</span></div>
-                    <input type="range" id="sliderKd" class="w-full pid-slider" min="0" max="2" step="0.05" value="0.0">
-                </div>
-            </div>
-
-            <div class="space-y-3 pt-3 border-t border-gray-700">
-                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Gait Controls</h2>
-                <div class="grid grid-cols-3 gap-2 text-center font-semibold text-white">
-                    <button onclick="setGait('rotate_left')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">ROT L</button>
-                    <button onclick="setGait('forward')" class="bg-blue-600 hover:bg-blue-500 rounded py-2 px-1 text-[10px] shadow-md transition-colors">FWD</button>
-                    <button onclick="setGait('rotate_right')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">ROT R</button>
-                    
-                    <button onclick="setGait('strafe_left')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">STR L</button>
-                    <button onclick="setGait('stop')" class="bg-red-600 hover:bg-red-500 rounded py-2 px-1 text-[10px] shadow-md transition-colors">STOP</button>
-                    <button onclick="setGait('strafe_right')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">STR R</button>
-                    
-                    <div></div>
-                    <button onclick="setGait('backward')" class="bg-gray-700 hover:bg-gray-600 rounded py-2 px-1 text-[10px] shadow-md transition-colors">BACK</button>
-                    <div></div>
-                </div>
-                <button class="btn-cal" onclick="calibrate()">📐 Calibrate Level</button>
-            </div>
-        </div>
-        
-        <div class="bg-gray-950 p-5 flex justify-between text-center rounded-b-xl border-t border-gray-700">
-            <div><p class="text-[10px] text-gray-500 uppercase tracking-widest">Coxa</p><p id="outCx" class="text-lg font-mono font-bold text-blue-400">90&deg;</p></div>
-            <div><p class="text-[10px] text-gray-500 uppercase tracking-widest">Femur</p><p id="outFm" class="text-lg font-mono font-bold text-green-400">90&deg;</p></div>
-            <div><p class="text-[10px] text-gray-500 uppercase tracking-widest">Tibia</p><p id="outTb" class="text-lg font-mono font-bold text-red-400">90&deg;</p></div>
         </div>
     </div>
 
-    <!-- Floating Joysticks -->
-    <div class="absolute bottom-6 left-6 flex flex-col items-center bg-gray-900/80 p-3 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-md">
-        <span class="text-[10px] text-gray-400 mb-2 font-semibold tracking-wider">THROTTLE / YAW</span>
-        <canvas id="joyLeft" width="140" height="140" class="bg-gray-950 rounded-full shadow-inner border-2 border-gray-600 touch-none"></canvas>
+    <!-- Top Right Actions -->
+    <div class="ui-layer top-4 right-4 flex space-x-2">
+        <button onclick="openModal('setup')" class="panel px-4 py-3 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95">⚙️ Setup</button>
+        <button onclick="openModal('tune')" class="panel px-4 py-3 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95">🎛️ Tuning</button>
     </div>
 
-    <div class="absolute bottom-6 right-80 mr-6 flex flex-col items-center bg-gray-900/80 p-3 rounded-2xl border border-gray-700 shadow-2xl backdrop-blur-md">
-        <span class="text-[10px] text-gray-400 mb-2 font-semibold tracking-wider">PITCH / ROLL</span>
-        <canvas id="joyRight" width="140" height="140" class="bg-gray-950 rounded-full shadow-inner border-2 border-gray-600 touch-none"></canvas>
+    <!-- Bottom Left: Joystick -->
+    <div class="ui-layer bottom-6 left-6 flex flex-col items-center">
+        <span class="text-[10px] text-gray-400 mb-2 font-bold tracking-wider drop-shadow-md">THROTTLE / YAW</span>
+        <canvas id="joyLeft" width="250" height="250" class="panel rounded-full touch-none"></canvas>
+    </div>
+
+    <!-- Bottom Right: Joystick -->
+    <div class="ui-layer bottom-6 right-6 flex flex-col items-center">
+        <span class="text-[10px] text-gray-400 mb-2 font-bold tracking-wider drop-shadow-md">PITCH / ROLL</span>
+        <canvas id="joyRight" width="250" height="250" class="panel rounded-full touch-none"></canvas>
+    </div>
+
+    <!-- Bottom Center: Gait & AutoBalance -->
+    <div class="ui-layer bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col items-center">
+        <div class="grid grid-cols-3 gap-2 mb-4">
+            <button onclick="setGait('rotate_left')" class="btn-gait">ROT L</button>
+            <button onclick="setGait('forward')" class="btn-gait">FWD</button>
+            <button onclick="setGait('rotate_right')" class="btn-gait">ROT R</button>
+            
+            <button onclick="setGait('strafe_left')" class="btn-gait">STR L</button>
+            <button onclick="setGait('stop')" class="btn-gait !bg-red-900 !border-red-700 !text-red-300">STOP</button>
+            <button onclick="setGait('strafe_right')" class="btn-gait">STR R</button>
+            
+            <div></div>
+            <button onclick="setGait('backward')" class="btn-gait">BACK</button>
+            <div></div>
+        </div>
+        
+        <div class="flex space-x-2 w-full">
+            <button id="btnAB" onclick="toggleAB()" class="toggle-btn flex-1">Auto-Balance: OFF</button>
+            <button onclick="calibrate()" class="toggle-btn flex-1 !bg-emerald-600 hover:!bg-emerald-500 !text-white !border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]">📐 Calibrate</button>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modalOverlay" class="modal-overlay">
+        <!-- SETUP MODAL -->
+        <div id="modal-setup" class="modal hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-white">⚙️ Setup & Calibration</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Target Pose IK -->
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Target Pose (IK)</h3>
+                    <div class="space-y-3">
+                        <div><div class="flex justify-between text-xs mb-1"><label>X (Forward)</label><span id="valX">0 mm</span></div><input type="range" id="sliderX" min="-60" max="60" value="0"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Y (Vertical)</label><span id="valY">-80 mm</span></div><input type="range" id="sliderY" min="-120" max="-30" value="-80"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Z (Lateral)</label><span id="valZ">28 mm</span></div><input type="range" id="sliderZ" min="-20" max="60" value="28"></div>
+                    </div>
+                </div>
+
+                <!-- Servo Offsets -->
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Servo Offsets (Ch 0-15)</h3>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-3" id="servo-grid">
+                        <!-- JS injected -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TUNING MODAL -->
+        <div id="modal-tune" class="modal hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-white">🎛️ Suspension Tuning</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- PID Toggles & Sliders -->
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Advanced PID</h3>
+                        <button id="btnPID" onclick="togglePID()" class="toggle-btn">PID: OFF</button>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div><div class="flex justify-between text-xs mb-1"><label>Kp (Stiffness)</label><span id="valKp">1.00</span></div><input type="range" id="sliderKp" class="pid-slider" min="0" max="5" step="0.1" value="1.0"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Ki (Sag Correction)</label><span id="valKi">0.00</span></div><input type="range" id="sliderKi" class="pid-slider" min="0" max="2" step="0.05" value="0.0"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Kd (Dampening)</label><span id="valKd">0.00</span></div><input type="range" id="sliderKd" class="pid-slider" min="0" max="2" step="0.05" value="0.0"></div>
+                    </div>
+                </div>
+
+                <!-- Deadband Slider -->
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">IMU Deadband</h3>
+                    <div><div class="flex justify-between text-xs mb-1"><label>Threshold (deg)</label><span id="valDB">0.0&deg;</span></div><input type="range" id="sliderDB" min="0" max="10" step="0.5" value="0.0"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        // --- STATE ---
+        let stateAB = false;
+        let statePID = false;
+        
+        function openModal(id) {
+            document.getElementById('modalOverlay').style.display = 'flex';
+            document.getElementById('modal-setup').classList.add('hidden');
+            document.getElementById('modal-tune').classList.add('hidden');
+            document.getElementById('modal-' + id).classList.remove('hidden');
+        }
+        function closeModal() {
+            document.getElementById('modalOverlay').style.display = 'none';
+        }
+
+        function syncToggles() {
+            fetch(`/toggle?ab=${stateAB?1:0}&pid=${statePID?1:0}`);
+            
+            const btnAB = document.getElementById('btnAB');
+            if (stateAB) { btnAB.classList.add('active'); btnAB.innerText = 'Auto-Balance: ON'; }
+            else { btnAB.classList.remove('active'); btnAB.innerText = 'Auto-Balance: OFF'; }
+
+            const btnPID = document.getElementById('btnPID');
+            if (statePID) { btnPID.classList.add('active'); btnPID.innerText = 'PID: ON'; }
+            else { btnPID.classList.remove('active'); btnPID.innerText = 'PID: OFF'; }
+        }
+
+        function toggleAB() { stateAB = !stateAB; syncToggles(); }
+        function togglePID() { statePID = !statePID; syncToggles(); }
+
+        // --- SERVO SLIDERS GENERATION ---
+        const servoGrid = document.getElementById('servo-grid');
+        for (let i = 0; i < 16; i++) {
+            servoGrid.innerHTML += `
+                <div>
+                    <div class="flex justify-between text-[10px] mb-1 text-gray-400 font-bold"><label>CH ${i}</label><span id="valOff${i}">0&deg;</span></div>
+                    <input type="range" id="sliderOff${i}" class="off-slider" data-ch="${i}" min="-45" max="45" value="0">
+                </div>
+            `;
+        }
+
+        document.querySelectorAll('.off-slider').forEach(s => {
+            s.addEventListener('change', (e) => { // Send on release
+                const ch = e.target.getAttribute('data-ch');
+                const val = e.target.value;
+                document.getElementById(`valOff${ch}`).innerText = val + '\xB0';
+                fetch(`/offset?ch=${ch}&val=${val}`);
+            });
+            s.addEventListener('input', (e) => {
+                const ch = e.target.getAttribute('data-ch');
+                document.getElementById(`valOff${ch}`).innerText = e.target.value + '\xB0';
+            });
+        });
+
         // --- THREE.JS SETUP ---
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
@@ -150,12 +214,10 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
         controls.target.set(0, -40, 0);
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -168,33 +230,24 @@ const char index_html[] PROGMEM = R"rawliteral(
         scene.add(gridHelper);
         scene.add(new THREE.AxesHelper(50));
 
-        // --- ROBOT LEG MODEL ---
         const L_COXA = 28.0, L_FEMUR = 50.0, L_TIBIA = 72.0;
-        const matCoxa = new THREE.MeshPhongMaterial({ color: 0x3b82f6, flatShading: true });
-        const matFemur = new THREE.MeshPhongMaterial({ color: 0x10b981, flatShading: true });
-        const matTibia = new THREE.MeshPhongMaterial({ color: 0xef4444, flatShading: true });
-        const matJoint = new THREE.MeshPhongMaterial({ color: 0x9ca3af });
-
-        const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 40), new THREE.MeshPhongMaterial({ color: 0x4b5563 }));
-        baseMesh.position.set(-10, 0, 0); scene.add(baseMesh);
-
+        const matCoxa = new THREE.MeshPhongMaterial({ color: 0x3b82f6 });
+        const matFemur = new THREE.MeshPhongMaterial({ color: 0x10b981 });
+        const matTibia = new THREE.MeshPhongMaterial({ color: 0xef4444 });
+        
         const coxaGroup = new THREE.Group(); scene.add(coxaGroup);
-        const coxaGeo = new THREE.CylinderGeometry(4, 4, L_COXA, 16); coxaGeo.rotateX(Math.PI / 2); coxaGeo.translate(0, 0, L_COXA / 2);
-        coxaGroup.add(new THREE.Mesh(coxaGeo, matCoxa)); coxaGroup.add(new THREE.Mesh(new THREE.SphereGeometry(5.5), matJoint));
-
         const femurGroup = new THREE.Group(); femurGroup.position.set(0, 0, L_COXA); coxaGroup.add(femurGroup);
-        const femurGeo = new THREE.CylinderGeometry(3.5, 3.5, L_FEMUR, 16); femurGeo.translate(0, -L_FEMUR / 2, 0);
-        femurGroup.add(new THREE.Mesh(femurGeo, matFemur)); femurGroup.add(new THREE.Mesh(new THREE.SphereGeometry(4.5), matJoint));
-
         const tibiaGroup = new THREE.Group(); tibiaGroup.position.set(0, -L_FEMUR, 0); femurGroup.add(tibiaGroup);
-        const tibiaGeo = new THREE.CylinderGeometry(2.5, 1.5, L_TIBIA, 16); tibiaGeo.translate(0, -L_TIBIA / 2, 0);
-        tibiaGroup.add(new THREE.Mesh(tibiaGeo, matTibia)); tibiaGroup.add(new THREE.Mesh(new THREE.SphereGeometry(3.5), matJoint));
+        
+        coxaGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(4, 4, L_COXA, 16).rotateX(Math.PI/2).translate(0,0,L_COXA/2), matCoxa));
+        femurGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, L_FEMUR, 16).translate(0,-L_FEMUR/2,0), matFemur));
+        tibiaGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(2.5, 1.5, L_TIBIA, 16).translate(0,-L_TIBIA/2,0), matTibia));
 
         const targetMarker = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true }));
         scene.add(targetMarker);
 
-        // --- IK SOLVER (Browser Side for UI) ---
-        function solveDogIK(x, y, z, offC, offF, offT) {
+        // --- IK SOLVER ---
+        function solveDogIK(x, y, z) {
             let L_yz = Math.sqrt(y * y + z * z);
             if (L_yz < L_COXA) L_yz = L_COXA;
             let L_drop = Math.sqrt(L_yz * L_yz - L_COXA * L_COXA);
@@ -209,15 +262,12 @@ const char index_html[] PROGMEM = R"rawliteral(
             let cos_tibia = Math.max(-1.0, Math.min(1.0, (L_FEMUR * L_FEMUR + L_TIBIA * L_TIBIA - D * D) / (2.0 * L_FEMUR * L_TIBIA)));
             let inner_femur = Math.acos(cos_femur);
             let inner_tibia = Math.acos(cos_tibia);
-            let knee_bend = Math.PI - inner_tibia;
 
-            let idealC = Math.max(0, Math.min(180, 90.0 + (theta_c * 180 / Math.PI) + offC));
-            let idealF = Math.max(0, Math.min(180, 90.0 + ((angle_to_target + inner_femur) * 180 / Math.PI) + offF));
-            let idealT = Math.max(0, Math.min(180, (inner_tibia * 180 / Math.PI) + offT));
+            let idealC = Math.max(0, Math.min(180, 90.0 + (theta_c * 180 / Math.PI)));
+            let idealF = Math.max(0, Math.min(180, 90.0 + ((angle_to_target + inner_femur) * 180 / Math.PI)));
+            let idealT = Math.max(0, Math.min(180, (inner_tibia * 180 / Math.PI)));
 
-            const SCALE = 147.0 / 180.0;
             return {
-                servo: { c: idealC * SCALE, f: idealF * SCALE, t: idealT * SCALE },
                 rad: {
                     c: (idealC - 90.0) * (Math.PI / 180.0),
                     f: (idealF - 90.0) * (Math.PI / 180.0),
@@ -229,7 +279,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         // --- HARDWARE COMMS ---
         let sendTimeout;
         let rcState = { t: 0, y: 0, p: 0, r: 0, s: 0 };
-        let rcInterval;
         let isGaitActive = false;
 
         function setGait(cmd) {
@@ -246,150 +295,171 @@ const char index_html[] PROGMEM = R"rawliteral(
             fetch(`/gait?cmd=${cmd}`);
         }
 
-        function calibrate() {
-            fetch('/calibrate');
-        }
-
-        function resetRC() {
-            setGait('stop');
-            if(window.drawLeftJoy) window.drawLeftJoy(0, 0);
-            if(window.drawRightJoy) window.drawRightJoy(0, 0);
-        }
+        function calibrate() { fetch('/calibrate'); }
 
         function initJoystick(canvasId, isLeft) {
             const canvas = document.getElementById(canvasId);
             const ctx = canvas.getContext('2d');
             const radius = canvas.width / 2;
             const center = { x: radius, y: radius };
-            const joyRadius = 25;
-            
+            const joyRadius = 22;
             let active = false;
 
             function draw(nx, ny) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.beginPath(); ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
-                ctx.moveTo(center.x, 0); ctx.lineTo(center.x, canvas.height);
-                ctx.moveTo(0, center.y); ctx.lineTo(canvas.width, center.y); ctx.stroke();
                 
-                let px = center.x + nx * (radius - joyRadius);
-                let py = center.y - ny * (radius - joyRadius);
-                ctx.beginPath(); ctx.arc(px, py, joyRadius, 0, Math.PI * 2);
-                ctx.fillStyle = '#3b82f6'; ctx.fill();
-                ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 2; ctx.stroke();
+                // Crosshair
+                ctx.beginPath(); 
+                ctx.strokeStyle = '#4b5563'; 
+                ctx.lineWidth = 1; 
+                ctx.moveTo(center.x, 0); ctx.lineTo(center.x, canvas.height);
+                ctx.moveTo(0, center.y); ctx.lineTo(canvas.width, center.y); 
+                ctx.stroke();
+                
+                // Outer circle edge
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, radius - 2, 0, Math.PI * 2);
+                ctx.strokeStyle = '#374151';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Thumbpad
+                let px = center.x + nx * (radius - joyRadius - 5);
+                let py = center.y - ny * (radius - joyRadius - 5);
+                ctx.beginPath(); 
+                ctx.arc(px, py, joyRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#3b82f6'; 
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#93c5fd';
+                ctx.stroke();
             }
 
             if(isLeft) window.drawLeftJoy = draw; else window.drawRightJoy = draw;
             draw(0, 0);
             
             function updateState(x, y) {
-                let nx = (x - center.x) / (radius - joyRadius);
-                let ny = -(y - center.y) / (radius - joyRadius);
+                let maxDist = radius - joyRadius - 5;
+                let dx = x - center.x;
+                let dy = -(y - center.y);
+                let nx = dx / maxDist;
+                let ny = dy / maxDist;
                 let dist = Math.sqrt(nx*nx + ny*ny);
                 if (dist > 1.0) { nx /= dist; ny /= dist; }
                 
-                if (isLeft) { rcState.y = nx; rcState.t = ny; rcState.s = 0; } 
-                else { rcState.r = nx; rcState.p = ny; rcState.s = 0; }
+                if (isLeft) { rcState.y = nx; rcState.t = ny; } 
+                else { rcState.r = nx; rcState.p = ny; }
                 draw(nx, ny);
             }
 
+            let touchId = null;
+
             function handleStart(e) { 
-                isGaitActive = false; // Break the preset gait macro if active
+                isGaitActive = false; 
                 active = true; 
-                handleMove(e); 
+                if (e.changedTouches) {
+                    touchId = e.changedTouches[0].identifier;
+                    let rect = canvas.getBoundingClientRect();
+                    updateState(e.changedTouches[0].clientX - rect.left, e.changedTouches[0].clientY - rect.top);
+                } else {
+                    let rect = canvas.getBoundingClientRect();
+                    updateState(e.clientX - rect.left, e.clientY - rect.top);
+                }
             }
-            function handleEnd(e) { active = false; updateState(center.x, center.y); }
+            function handleEnd(e) { 
+                if (e.changedTouches) {
+                    let found = false;
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        if (e.changedTouches[i].identifier === touchId) found = true;
+                    }
+                    if (!found) return;
+                }
+                active = false; 
+                touchId = null; 
+                updateState(center.x, center.y); 
+            }
             function handleMove(e) {
                 if (!active) return;
                 e.preventDefault();
                 let rect = canvas.getBoundingClientRect();
-                let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                let clientX = e.clientX;
+                let clientY = e.clientY;
+                if (e.changedTouches) {
+                    let found = false;
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        if (e.changedTouches[i].identifier === touchId) {
+                            clientX = e.changedTouches[i].clientX;
+                            clientY = e.changedTouches[i].clientY;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) return; 
+                }
                 updateState(clientX - rect.left, clientY - rect.top);
             }
 
             canvas.addEventListener('mousedown', handleStart);
             window.addEventListener('mouseup', handleEnd);
-            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('mousemove', handleMove, {passive: false});
             canvas.addEventListener('touchstart', handleStart, {passive: false});
-            canvas.addEventListener('touchend', handleEnd);
-            canvas.addEventListener('touchmove', handleMove, {passive: false});
+            window.addEventListener('touchend', handleEnd);
+            window.addEventListener('touchmove', handleMove, {passive: false});
         }
 
-        function startRCLoop() {
-            rcInterval = setInterval(() => {
-                if (isGaitActive) return; // Yield completely to backend Gait state
-                fetch(`/rc?t=${rcState.t.toFixed(2)}&y=${rcState.y.toFixed(2)}&p=${rcState.p.toFixed(2)}&r=${rcState.r.toFixed(2)}&s=${rcState.s.toFixed(2)}`)
-                .then(r => {
-                    if (r.ok) {
-                        document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
-                        document.getElementById('connText').innerText = "RC Connected";
-                    }
-                }).catch(e => {
-                    document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
-                    document.getElementById('connText').innerText = "Disconnected";
-                });
-            }, 100); // 10Hz RC Loop
-        }
+        setInterval(() => {
+            if (isGaitActive) return; 
+            fetch(`/rc?t=${rcState.t.toFixed(2)}&y=${rcState.y.toFixed(2)}&p=${rcState.p.toFixed(2)}&r=${rcState.r.toFixed(2)}&s=${rcState.s.toFixed(2)}`)
+            .then(r => {
+                if (r.ok) {
+                    document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
+                    document.getElementById('connText').innerText = "RC Connected";
+                }
+            }).catch(e => {
+                document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
+                document.getElementById('connText').innerText = "Disconnected";
+            });
+        }, 100);
 
-        window.addEventListener('DOMContentLoaded', () => {
-            initJoystick('joyLeft', true);
-            initJoystick('joyRight', false);
-            startRCLoop();
-        });
-
-        function sendToESP32(tx, ty, tz, oc, of, ot) {
+        function sendToESP32(tx, ty, tz) {
             clearTimeout(sendTimeout);
             sendTimeout = setTimeout(() => {
-                fetch(`/ik?x=${tx}&y=${ty}&z=${tz}&cx=${oc}&fm=${of}&tb=${ot}`)
-                .then(response => {
-                    if (response.ok) {
-                        document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
+                fetch(`/ik?x=${tx}&y=${ty}&z=${tz}`)
+                .then(r => {
+                    if (r.ok) {
+                        document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
                         document.getElementById('connText').innerText = "Hardware Synced";
-                    } else {
-                        throw new Error('Bad Network Response');
                     }
                 })
                 .catch(e => {
-                    console.log('ESP32 busy or disconnected');
-                    document.getElementById('connDot').className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
+                    document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
                     document.getElementById('connText').innerText = "Disconnected";
                 });
-            }, 50); // Throttled to 20 updates per second
+            }, 50); 
         }
 
         function updateSimulation() {
             const tx = parseFloat(document.getElementById('sliderX').value);
             const ty = parseFloat(document.getElementById('sliderY').value);
             const tz = parseFloat(document.getElementById('sliderZ').value);
-            const oc = parseFloat(document.getElementById('sliderCX').value);
-            const of = parseFloat(document.getElementById('sliderFM').value);
-            const ot = parseFloat(document.getElementById('sliderTB').value);
 
             document.getElementById('valX').innerText = tx + ' mm';
             document.getElementById('valY').innerText = ty + ' mm';
             document.getElementById('valZ').innerText = tz + ' mm';
-            document.getElementById('valCX').innerText = oc + '\xB0';
-            document.getElementById('valFM').innerText = of + '\xB0';
-            document.getElementById('valTB').innerText = ot + '\xB0';
 
             targetMarker.position.set(tx, ty, tz);
-            const ik = solveDogIK(tx, ty, tz, oc, of, ot);
+            const ik = solveDogIK(tx, ty, tz);
 
             coxaGroup.rotation.x = -ik.rad.c; 
             femurGroup.rotation.z = ik.rad.f; 
             tibiaGroup.rotation.z = -ik.rad.t; 
 
-            document.getElementById('outCx').innerText = ik.servo.c.toFixed(1) + '\xB0';
-            document.getElementById('outFm').innerText = ik.servo.f.toFixed(1) + '\xB0';
-            document.getElementById('outTb').innerText = ik.servo.t.toFixed(1) + '\xB0';
-
-            // Push to ESP32 Hardware
-            sendToESP32(tx, ty, tz, oc, of, ot);
+            sendToESP32(tx, ty, tz);
         }
 
-        document.querySelectorAll('input[type="range"]:not(.pid-slider)').forEach(slider => {
-            slider.addEventListener('input', updateSimulation);
-        });
+        document.getElementById('sliderX').addEventListener('input', updateSimulation);
+        document.getElementById('sliderY').addEventListener('input', updateSimulation);
+        document.getElementById('sliderZ').addEventListener('input', updateSimulation);
 
         function updatePID() {
             const p = parseFloat(document.getElementById('sliderKp').value);
@@ -401,8 +471,12 @@ const char index_html[] PROGMEM = R"rawliteral(
             fetch(`/pid?p=${p}&i=${i}&d=${d}`);
         }
 
-        document.querySelectorAll('.pid-slider').forEach(slider => {
-            slider.addEventListener('input', updatePID);
+        document.querySelectorAll('.pid-slider').forEach(s => s.addEventListener('input', updatePID));
+
+        document.getElementById('sliderDB').addEventListener('input', (e) => {
+            const v = parseFloat(e.target.value);
+            document.getElementById('valDB').innerHTML = v.toFixed(1) + '&deg;';
+            fetch(`/deadband?v=${v}`);
         });
 
         window.addEventListener('resize', () => {
@@ -412,6 +486,9 @@ const char index_html[] PROGMEM = R"rawliteral(
         });
 
         window.onload = function () {
+            initJoystick('joyLeft', true);
+            initJoystick('joyRight', false);
+            syncToggles(); // set initial state
             updateSimulation();
             function animate() {
                 requestAnimationFrame(animate);

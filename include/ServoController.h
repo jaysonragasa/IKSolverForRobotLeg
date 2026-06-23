@@ -15,6 +15,8 @@ public:
     // Set whether the servo is inverted (1 for normal, -1 for inverted).
     void setInvert(uint8_t pin, int8_t invert);
     void setEnabled(uint8_t pin, int8_t enabled);
+    void setOffset(uint8_t pin, float offset);
+    float getOffset(uint8_t pin) const;
     
     // Set the target angle of the servo on a specific pin in physical degrees.
     void setAngle(uint8_t pin, float angle);
@@ -41,5 +43,12 @@ private:
         1, 1, 1, 1,
         1, 1, 1, 1,
         1, 1, 1, 1
+    };
+
+    float _servoOffsets[16] = {
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f
     };
 };
