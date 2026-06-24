@@ -51,18 +51,24 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
     // --- SMOOTHING (LOW-PASS FILTER) ---
     static float s_throttle = 0, s_yaw = 0, s_pitch = 0, s_roll = 0, s_strafe = 0;
     
-    float lerp = 8.0f * dt; 
-    if (lerp > 1.0f) lerp = 1.0f;
+    float moveLerp = 4.0f * dt; // fast enough for walking responsiveness
+    float poseLerp = 2.0f * dt; // buttery smooth for chassis posing
+    if (moveLerp > 1.0f) moveLerp = 1.0f;
+    if (poseLerp > 1.0f) poseLerp = 1.0f;
 
-    s_throttle += (rcThrottle - s_throttle) * lerp;
-    s_yaw += (rcYaw - s_yaw) * lerp;
-    s_pitch += (rcPitch - s_pitch) * lerp;
-    s_roll += (rcRoll - s_roll) * lerp;
-    s_strafe += (rcStrafe - s_strafe) * lerp;
+    s_throttle += (rcThrottle - s_throttle) * moveLerp;
+    s_yaw += (rcYaw - s_yaw) * moveLerp;
+    s_strafe += (rcStrafe - s_strafe) * moveLerp;
+
+    s_pitch += (rcPitch - s_pitch) * poseLerp;
+    s_roll += (rcRoll - s_roll) * poseLerp;
 
     // --- CONTINUOUS STATE LOGIC ---
     float moveSpeed = sqrt(s_throttle * s_throttle + s_yaw * s_yaw + s_strafe * s_strafe);
     if (moveSpeed > 1.0f) moveSpeed = 1.0f;
+    
+    float poseSpeed = sqrt(s_pitch * s_pitch + s_roll * s_roll);
+    float activeInput = moveSpeed > poseSpeed ? moveSpeed : poseSpeed;
 
     // Advance the gait phase ONLY if we are commanding movement
     if (moveSpeed > 0.02f) { // tighter deadzone now that it's smoothed
@@ -86,9 +92,9 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
     // ==========================================
     // PID FADING LOGIC
     // Automatically disable auto-balance
-    // when the joystick starts commanding a walk.
+    // when the joystick commands a walk or a pose.
     // ==========================================
-    if (moveSpeed > 0.05f) {
+    if (activeInput > 0.05f) {
         pidMultiplier -= dt * 2.0f; 
     } else if (gaitPhase == 0.0f || gaitPhase == 0.5f) {
         pidMultiplier += dt * 1.0f; 
@@ -111,24 +117,25 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
         float y = baseY;
         float z = baseZ;
 
-        // --- PITCH & ROLL (Auto-Balance) ---
-        float pitchOffset = 0;
-        float rollOffset = 0;
+        // --- PITCH & ROLL (Manual + Auto-Balance Blending) ---
+        float manualPitchOffset = s_pitch * 40.0f; // Pitch max 40mm
+        float manualRollOffset  = s_roll * 40.0f;
+
+        float pitchOffset = manualPitchOffset;
+        float rollOffset  = manualRollOffset;
 
         if (autoBalanceEnabled) {
-            float targetPitch = s_pitch * 15.0f; 
-            float targetRoll  = s_roll * 15.0f;  
-
-            float errorPitch = imuPitch - targetPitch;
-            float errorRoll  = imuRoll - targetRoll;
+            float errorPitch = imuPitch - 0.0f; // Target is flat
+            float errorRoll  = imuRoll - 0.0f;
 
             if (fabs(errorPitch) < imuDeadband) errorPitch = 0.0f;
             if (fabs(errorRoll) < imuDeadband) errorRoll = 0.0f;
 
+            float stabPitchOffset = 0.0f;
+            float stabRollOffset  = 0.0f;
+
             if (pidEnabled) {
-                // ==========================================
                 // ACTIVE SUSPENSION PID
-                // ==========================================
                 integralPitch += errorPitch * dt;
                 integralRoll  += errorRoll * dt;
 
@@ -141,18 +148,22 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
                 float derivativePitch = gyroPitchRate;
                 float derivativeRoll  = gyroRollRate;
 
-                pitchOffset = ((kp * errorPitch) + (ki * integralPitch) + (kd * derivativePitch)) * pidMultiplier;
-                rollOffset  = ((kp * errorRoll) + (ki * integralRoll) + (kd * derivativeRoll)) * pidMultiplier;
+                stabPitchOffset = (kp * errorPitch) + (ki * integralPitch) + (kd * derivativePitch);
+                stabRollOffset  = (kp * errorRoll) + (ki * integralRoll) + (kd * derivativeRoll);
 
                 if (pidMultiplier == 0.0f) {
                     integralPitch = 0;
                     integralRoll = 0;
                 }
             } else {
-                // Pure proportional auto-balance using only the Kp slider (no fading, no dampening)
-                pitchOffset = errorPitch * 1.0f; // Hardcoded stiffness of 1.0 when PID is off
-                rollOffset  = errorRoll * 1.0f;
+                // Pure proportional auto-balance
+                stabPitchOffset = errorPitch * 1.0f; 
+                stabRollOffset  = errorRoll * 1.0f;
             }
+
+            // Blend: pidMultiplier = 1 means 100% auto-balance, pidMultiplier = 0 means 100% manual pose
+            pitchOffset = (stabPitchOffset * pidMultiplier) + (manualPitchOffset * (1.0f - pidMultiplier));
+            rollOffset  = (stabRollOffset * pidMultiplier)  + (manualRollOffset  * (1.0f - pidMultiplier));
         }
 
         // Apply offsets

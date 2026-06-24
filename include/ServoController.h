@@ -24,31 +24,8 @@ public:
 private:
     Adafruit_PWMServoDriver _pwm;
     
-    float _maxAngles[16] = {
-        147.0f, 147.0f, 147.0f, 180.0f,
-        147.0f, 147.0f, 147.0f, 180.0f,
-        149.0f, 147.0f, 146.0f, 180.0f,
-        148.0f, 147.0f, 148.0f, 180.0f
-    };
-    
-    int8_t _inverts[16] = {
-        -1,  1, -1,  1,
-         1, -1,  1,  1,
-         1,  1, -1,  1,
-        -1, -1,  1,  1
-    };
-    
-    int8_t _enabled[16] = {
-        1, 1, 1, 1,
-        1, 1, 1, 1,
-        1, 1, 1, 1,
-        1, 1, 1, 1
-    };
-
-    float _servoOffsets[16] = {
-        0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 0.0f
-    };
+    float _maxAngles[16];
+    int8_t _inverts[16];
+    int8_t _enabled[16];
+    float _servoOffsets[16];
 };

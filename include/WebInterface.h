@@ -29,10 +29,17 @@ const char index_html[] PROGMEM = R"rawliteral(
         .btn-gait:active { transform: scale(0.95); background: #3b82f6; color: white; border-color: #60a5fa; }
         
         .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; pointer-events: auto; }
-        .modal { background: #1f2937; width: 90%; max-width: 450px; max-height: 85vh; overflow-y: auto; border-radius: 1.5rem; padding: 1.5rem; border: 1px solid #374151; box-shadow: 0 25px 50px -12px rgba(0,0,0,1); }
+        .modal { background: #1f2937; width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto; border-radius: 1.5rem; padding: 1.5rem; border: 1px solid #374151; box-shadow: 0 25px 50px -12px rgba(0,0,0,1); }
         
         .toggle-btn { background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold; font-size: 0.75rem; transition: all 0.2s; }
         .toggle-btn.active { background: #3b82f6; color: white; border-color: #60a5fa; box-shadow: 0 0 15px rgba(59,130,246,0.5); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        * { scrollbar-width: thin; scrollbar-color: #4b5563 transparent; }
     </style>
 </head>
 <body class="text-white antialiased">
@@ -104,7 +111,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Target Pose (IK)</h3>
                     <div class="space-y-3">
                         <div><div class="flex justify-between text-xs mb-1"><label>X (Forward)</label><span id="valX">0 mm</span></div><input type="range" id="sliderX" min="-60" max="60" value="0"></div>
-                        <div><div class="flex justify-between text-xs mb-1"><label>Y (Vertical)</label><span id="valY">-80 mm</span></div><input type="range" id="sliderY" min="-120" max="-30" value="-80"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Y (Vertical)</label><span id="valY">-100 mm</span></div><input type="range" id="sliderY" min="-120" max="-30" value="-100"></div>
                         <div><div class="flex justify-between text-xs mb-1"><label>Z (Lateral)</label><span id="valZ">28 mm</span></div><input type="range" id="sliderZ" min="-20" max="60" value="28"></div>
                     </div>
                 </div>
@@ -112,7 +119,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 <!-- Servo Offsets -->
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Servo Offsets (Ch 0-15)</h3>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-3" id="servo-grid">
+                    <div id="servo-grid">
                         <!-- JS injected -->
                     </div>
                 </div>
@@ -182,13 +189,36 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         // --- SERVO SLIDERS GENERATION ---
         const servoGrid = document.getElementById('servo-grid');
-        for (let i = 0; i < 16; i++) {
-            servoGrid.innerHTML += `
-                <div>
-                    <div class="flex justify-between text-[10px] mb-1 text-gray-400 font-bold"><label>CH ${i}</label><span id="valOff${i}">0&deg;</span></div>
-                    <input type="range" id="sliderOff${i}" class="off-slider" data-ch="${i}" min="-45" max="45" value="0">
-                </div>
-            `;
+        let html = '';
+        for (let g = 0; g < 4; g++) {
+            html += `<div class="bg-gray-700/50 p-3 rounded-lg mb-3">`;
+            html += `<h4 class="text-[10px] font-bold text-gray-400 mb-2 tracking-wider">LEG ${g+1} (CH ${g*4} - ${g*4+3})</h4>`;
+            html += `<div class="grid grid-cols-4 gap-3">`;
+            for (let i = 0; i < 4; i++) {
+                let ch = g * 4 + i;
+                html += `
+                    <div class="flex flex-col items-center w-full">
+                        <div class="text-[10px] text-gray-400 font-bold mb-1">CH ${ch} <span id="valOff${ch}" class="text-blue-400 ml-1">0&deg;</span></div>
+                        <div class="flex items-center space-x-1 w-full">
+                            <button class="bg-gray-600 text-white rounded px-2 py-0.5 text-xs hover:bg-gray-500 transition-colors" onclick="stepOffset(${ch}, -1)">&lt;</button>
+                            <input type="range" id="sliderOff${ch}" class="off-slider w-full" data-ch="${ch}" min="-45" max="45" value="0">
+                            <button class="bg-gray-600 text-white rounded px-2 py-0.5 text-xs hover:bg-gray-500 transition-colors" onclick="stepOffset(${ch}, 1)">&gt;</button>
+                        </div>
+                    </div>
+                `;
+            }
+            html += `</div></div>`;
+        }
+        servoGrid.innerHTML = html;
+
+        function stepOffset(ch, dir) {
+            let s = document.getElementById(`sliderOff${ch}`);
+            let val = parseInt(s.value) + dir;
+            if(val < -45) val = -45;
+            if(val > 45) val = 45;
+            s.value = val;
+            document.getElementById(`valOff${ch}`).innerText = val + '\xB0';
+            fetch(`/offset?ch=${ch}&val=${val}`);
         }
 
         document.querySelectorAll('.off-slider').forEach(s => {
@@ -286,7 +316,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 isGaitActive = false;
                 rcState = { t: 0, y: 0, p: 0, r: 0, s: 0 };
                 document.getElementById('sliderX').value = 0;
-                document.getElementById('sliderY').value = -80;
+                document.getElementById('sliderY').value = -100;
                 document.getElementById('sliderZ').value = 28;
                 updateSimulation(); 
             } else {

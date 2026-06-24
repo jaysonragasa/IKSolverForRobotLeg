@@ -2,6 +2,44 @@
 #include "Config.h"
 
 ServoController::ServoController() : _pwm(Adafruit_PWMServoDriver()) {
+    // Default everything to basic values
+    for (int i = 0; i < 16; i++) {
+        _maxAngles[i] = 180.0f;
+        _inverts[i] = 1;
+        _enabled[i] = 1;
+        _servoOffsets[i] = 0.0f;
+    }
+
+    // Apply calibrations according to the logical Leg to Pin mapping
+    for (int i = 0; i < 4; i++) {
+        uint8_t coxaPin = Config::LEGS[i].coxa;
+        uint8_t femurPin = Config::LEGS[i].femur;
+        uint8_t tibiaPin = Config::LEGS[i].tibia;
+
+        // Coxa
+        if (coxaPin < 16) {
+            _maxAngles[coxaPin] = Config::LEG_CALIBRATIONS[i].coxa.maxAngle;
+            _inverts[coxaPin] = Config::LEG_CALIBRATIONS[i].coxa.invert;
+            _enabled[coxaPin] = Config::LEG_CALIBRATIONS[i].coxa.enabled;
+            _servoOffsets[coxaPin] = Config::LEG_CALIBRATIONS[i].coxa.offset;
+        }
+
+        // Femur
+        if (femurPin < 16) {
+            _maxAngles[femurPin] = Config::LEG_CALIBRATIONS[i].femur.maxAngle;
+            _inverts[femurPin] = Config::LEG_CALIBRATIONS[i].femur.invert;
+            _enabled[femurPin] = Config::LEG_CALIBRATIONS[i].femur.enabled;
+            _servoOffsets[femurPin] = Config::LEG_CALIBRATIONS[i].femur.offset;
+        }
+
+        // Tibia
+        if (tibiaPin < 16) {
+            _maxAngles[tibiaPin] = Config::LEG_CALIBRATIONS[i].tibia.maxAngle;
+            _inverts[tibiaPin] = Config::LEG_CALIBRATIONS[i].tibia.invert;
+            _enabled[tibiaPin] = Config::LEG_CALIBRATIONS[i].tibia.enabled;
+            _servoOffsets[tibiaPin] = Config::LEG_CALIBRATIONS[i].tibia.offset;
+        }
+    }
 }
 
 void ServoController::begin() {

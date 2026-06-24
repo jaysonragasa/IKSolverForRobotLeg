@@ -20,6 +20,8 @@ public:
     float getGyroPitchRate() const { return gyroPitchRate; }
     float getGyroRollRate() const { return gyroRollRate; }
 
+    bool isConnected() const { return connected; }
+
     void calibrate();
 
 private:
@@ -33,6 +35,7 @@ private:
     float gyroPitchRate;
     float gyroRollRate;
     
+    bool connected;
     unsigned long lastUpdateTime;
 
     // Complementary filter constants

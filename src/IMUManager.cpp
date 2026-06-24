@@ -2,7 +2,7 @@
 #include <math.h>
 
 IMUManager::IMUManager() : pitch(0), roll(0), pitchOffset(0), rollOffset(0), 
-                           gyroPitchRate(0), gyroRollRate(0), lastUpdateTime(0) {}
+                           gyroPitchRate(0), gyroRollRate(0), connected(false), lastUpdateTime(0) {}
 
 bool IMUManager::init() {
     // Start I2C explicitly on pins 21/22
@@ -23,11 +23,14 @@ bool IMUManager::init() {
     pitchOffset = preferences.getFloat("imu_p_off", 0.0f);
     rollOffset  = preferences.getFloat("imu_r_off", 0.0f);
 
+    connected = true;
     lastUpdateTime = millis();
     return true;
 }
 
 void IMUManager::update() {
+    if (!connected) return;
+
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
 
@@ -46,12 +49,12 @@ void IMUManager::update() {
     // PITCH (Rotation around X-axis / Left-Right axis)
     // Positive pitch should make front legs extend. So tilting DOWN (front drops) needs positive pitch.
     float accelPitch = atan2(a.acceleration.y, a.acceleration.z) * 180.0f / PI;
-    gyroPitchRate = -g.gyro.x * 180.0f / PI; // Removed 'float'
+    gyroPitchRate = -g.gyro.x * 180.0f / PI;
 
     // ROLL (Rotation around Y-axis / Forward-Back axis)
     // Positive roll should make left legs extend. So tilting LEFT (left drops) needs positive roll.
     float accelRoll  = -atan2(a.acceleration.x, a.acceleration.z) * 180.0f / PI;
-    gyroRollRate  = -g.gyro.y * 180.0f / PI; // Removed 'float'
+    gyroRollRate  = -g.gyro.y * 180.0f / PI;
 
     // --- COMPLEMENTARY FILTER ---
     // Blend the Gyroscope (fast, drifts over time) with the Accelerometer (noisy, but absolute reference)
@@ -60,6 +63,8 @@ void IMUManager::update() {
 }
 
 void IMUManager::calibrate() {
+    if (!connected) return;
+
     pitchOffset = pitch;
     rollOffset = roll;
 
