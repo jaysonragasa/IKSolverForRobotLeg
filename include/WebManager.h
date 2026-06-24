@@ -25,4 +25,5 @@ private:
     void handleCalibrate();
     void handleOffset();
     void handleToggle();
+    void handleState();
 };

@@ -44,6 +44,7 @@ void WebManager::setupRoutes() {
     server.on("/calibrate", HTTP_GET, [this]() { handleCalibrate(); });
     server.on("/offset", HTTP_GET, [this]() { handleOffset(); });
     server.on("/toggle", HTTP_GET, [this]() { handleToggle(); });
+    server.on("/state", HTTP_GET, [this]() { handleState(); });
 }
 
 void WebManager::handleRoot() { 
@@ -115,10 +116,11 @@ void WebManager::handleCalibrate() {
 }
 
 void WebManager::handleOffset() {
-    if (server.hasArg("ch") && server.hasArg("val")) {
-        int ch = server.arg("ch").toInt();
+    if (server.hasArg("leg") && server.hasArg("joint") && server.hasArg("val")) {
+        int leg = server.arg("leg").toInt();
+        int joint = server.arg("joint").toInt();
         float val = server.arg("val").toFloat();
-        robot.setServoOffset(ch, val);
+        robot.setLogicalOffset(leg, joint, val);
     }
     server.send(200, "text/plain", "OK");
 }
@@ -130,4 +132,28 @@ void WebManager::handleToggle() {
         robot.setToggles(ab, pid);
     }
     server.send(200, "text/plain", "OK");
+}
+
+void WebManager::handleState() {
+    String json = "{";
+    
+    json += "\"ik\":[" + String(robot.getTX()) + "," + String(robot.getTY()) + "," + String(robot.getTZ()) + "],";
+    json += "\"ab\":" + String(robot.getAutoBalance() ? "true" : "false") + ",";
+    json += "\"pid_en\":" + String(robot.getPIDEnabled() ? "true" : "false") + ",";
+    json += "\"pid\":[" + String(robot.getKp()) + "," + String(robot.getKi()) + "," + String(robot.getKd()) + "],";
+    json += "\"db\":" + String(robot.getDeadband()) + ",";
+
+    json += "\"offsets\":[";
+    for (int leg = 0; leg < 4; leg++) {
+        json += "[";
+        for (int joint = 0; joint < 3; joint++) {
+            json += String(robot.getLogicalOffset(leg, joint));
+            if (joint < 2) json += ",";
+        }
+        json += "]";
+        if (leg < 3) json += ",";
+    }
+    json += "]}";
+    
+    server.send(200, "application/json", json);
 }

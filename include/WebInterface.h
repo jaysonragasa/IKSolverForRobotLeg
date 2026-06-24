@@ -190,19 +190,20 @@ const char index_html[] PROGMEM = R"rawliteral(
         // --- SERVO SLIDERS GENERATION ---
         const servoGrid = document.getElementById('servo-grid');
         let html = '';
+        const jointNames = ["Coxa", "Femur", "Tibia"];
+        
         for (let g = 0; g < 4; g++) {
             html += `<div class="bg-gray-700/50 p-3 rounded-lg mb-3">`;
-            html += `<h4 class="text-[10px] font-bold text-gray-400 mb-2 tracking-wider">LEG ${g+1} (CH ${g*4} - ${g*4+3})</h4>`;
-            html += `<div class="grid grid-cols-4 gap-3">`;
-            for (let i = 0; i < 4; i++) {
-                let ch = g * 4 + i;
+            html += `<h4 class="text-[10px] font-bold text-gray-400 mb-2 tracking-wider">LEG ${g}</h4>`;
+            html += `<div class="grid grid-cols-3 gap-3">`;
+            for (let j = 0; j < 3; j++) {
                 html += `
                     <div class="flex flex-col items-center w-full">
-                        <div class="text-[10px] text-gray-400 font-bold mb-1">CH ${ch} <span id="valOff${ch}" class="text-blue-400 ml-1">0&deg;</span></div>
+                        <div class="text-[10px] text-gray-400 font-bold mb-1">${jointNames[j]} <span id="valOff_${g}_${j}" class="text-blue-400 ml-1">0&deg;</span></div>
                         <div class="flex items-center space-x-1 w-full">
-                            <button class="bg-gray-600 text-white rounded px-2 py-0.5 text-xs hover:bg-gray-500 transition-colors" onclick="stepOffset(${ch}, -1)">&lt;</button>
-                            <input type="range" id="sliderOff${ch}" class="off-slider w-full" data-ch="${ch}" min="-45" max="45" value="0">
-                            <button class="bg-gray-600 text-white rounded px-2 py-0.5 text-xs hover:bg-gray-500 transition-colors" onclick="stepOffset(${ch}, 1)">&gt;</button>
+                            <button class="bg-gray-600 text-white rounded px-2 py-0.5 text-xs hover:bg-gray-500 transition-colors" onclick="stepOffset(${g}, ${j}, -1)">&lt;</button>
+                            <input type="range" id="sliderOff_${g}_${j}" class="off-slider w-full" data-leg="${g}" data-joint="${j}" min="-45" max="45" value="0">
+                            <button class="bg-gray-600 text-white rounded px-2 py-0.5 text-xs hover:bg-gray-500 transition-colors" onclick="stepOffset(${g}, ${j}, 1)">&gt;</button>
                         </div>
                     </div>
                 `;
@@ -211,28 +212,88 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         servoGrid.innerHTML = html;
 
-        function stepOffset(ch, dir) {
-            let s = document.getElementById(`sliderOff${ch}`);
+        function stepOffset(leg, joint, dir) {
+            let s = document.getElementById(`sliderOff_${leg}_${joint}`);
             let val = parseInt(s.value) + dir;
             if(val < -45) val = -45;
             if(val > 45) val = 45;
             s.value = val;
-            document.getElementById(`valOff${ch}`).innerText = val + '\xB0';
-            fetch(`/offset?ch=${ch}&val=${val}`);
+            document.getElementById(`valOff_${leg}_${joint}`).innerText = val + '\xB0';
+            fetch(`/offset?leg=${leg}&joint=${joint}&val=${val}`);
         }
 
         document.querySelectorAll('.off-slider').forEach(s => {
             s.addEventListener('change', (e) => { // Send on release
-                const ch = e.target.getAttribute('data-ch');
+                const leg = e.target.getAttribute('data-leg');
+                const joint = e.target.getAttribute('data-joint');
                 const val = e.target.value;
-                document.getElementById(`valOff${ch}`).innerText = val + '\xB0';
-                fetch(`/offset?ch=${ch}&val=${val}`);
+                document.getElementById(`valOff_${leg}_${joint}`).innerText = val + '\xB0';
+                fetch(`/offset?leg=${leg}&joint=${joint}&val=${val}`);
             });
             s.addEventListener('input', (e) => {
-                const ch = e.target.getAttribute('data-ch');
-                document.getElementById(`valOff${ch}`).innerText = e.target.value + '\xB0';
+                const leg = e.target.getAttribute('data-leg');
+                const joint = e.target.getAttribute('data-joint');
+                document.getElementById(`valOff_${leg}_${joint}`).innerText = e.target.value + '\xB0';
             });
         });
+
+        // --- FETCH STATE ON LOAD ---
+        fetch('/state')
+            .then(response => response.json())
+            .then(data => {
+                // Offsets
+                if (data.offsets) {
+                    for (let leg = 0; leg < 4; leg++) {
+                        for (let joint = 0; joint < 3; joint++) {
+                            let val = data.offsets[leg][joint];
+                            let s = document.getElementById(`sliderOff_${leg}_${joint}`);
+                            if (s) {
+                                s.value = val;
+                                document.getElementById(`valOff_${leg}_${joint}`).innerText = val + '\xB0';
+                            }
+                        }
+                    }
+                }
+                
+                // IK Pose
+                if (data.ik) {
+                    let axes = ['X', 'Y', 'Z'];
+                    for (let i = 0; i < 3; i++) {
+                        let s = document.getElementById('slider' + axes[i]);
+                        if (s) {
+                            s.value = data.ik[i];
+                            document.getElementById('val' + axes[i]).innerText = data.ik[i] + ' mm';
+                        }
+                    }
+                }
+
+                // Toggles
+                if (data.ab !== undefined) { stateAB = data.ab; }
+                if (data.pid_en !== undefined) { statePID = data.pid_en; }
+                syncToggles();
+
+                // PID
+                if (data.pid) {
+                    let pidKeys = ['Kp', 'Ki', 'Kd'];
+                    for (let i = 0; i < 3; i++) {
+                        let s = document.getElementById('slider' + pidKeys[i]);
+                        if (s) {
+                            s.value = data.pid[i];
+                            document.getElementById('val' + pidKeys[i]).innerText = data.pid[i];
+                        }
+                    }
+                }
+
+                // Deadband
+                if (data.db !== undefined) {
+                    let s = document.getElementById('sliderDB');
+                    if (s) {
+                        s.value = data.db;
+                        document.getElementById('valDB').innerHTML = data.db + '&deg;';
+                    }
+                }
+            })
+            .catch(e => console.log('Error fetching state:', e));
 
         // --- THREE.JS SETUP ---
         const container = document.getElementById('canvas-container');

@@ -21,8 +21,9 @@ public:
     void setRC(float t, float y, float p, float r, float s);
     void setPID(float p, float i, float d);
     void setIMUDeadband(float db);
-    void setToggles(bool autoBal, bool pid);
-    void setServoOffset(int channel, float offset);
+    void setToggles(bool autoBalance, bool pidEnabled);
+    void setLogicalOffset(int leg, int joint, float offset);
+    float getLogicalOffset(int leg, int joint);
 
     void calibrateIMU();
 
@@ -30,6 +31,18 @@ public:
     float getCoxaAngle(int legIndex) const;
     float getFemurAngle(int legIndex) const;
     float getTibiaAngle(int legIndex) const;
+
+    // Getters for Web UI State
+    float getTX() { return tX; }
+    float getTY() { return tY; }
+    float getTZ() { return tZ; }
+    
+    bool getAutoBalance() { return preferences.getBool("ab_en", false); }
+    bool getPIDEnabled() { return preferences.getBool("pid_en", false); }
+    float getKp() { return preferences.getFloat("pid_p", 1.0f); }
+    float getKi() { return preferences.getFloat("pid_i", 0.0f); }
+    float getKd() { return preferences.getFloat("pid_d", 0.0f); }
+    float getDeadband() { return preferences.getFloat("imu_db", 0.0f); }
 
 private:
     ServoController servoController;
