@@ -12,7 +12,8 @@ public:
     void setPID(float p, float i, float d);
     void setIMUDeadband(float db);
     void setToggles(bool autoBal, bool pid);
-    void update(float baseX, float baseY, float baseZ);
+    void setAnimation(int animMode); // 0 = NONE, 1 = WAVE
+    void update(float baseX, float baseY, float baseZ, float targetPitch = 0.0f, float targetRoll = 0.0f);
 
 private:
     ServoController& servoController;
@@ -30,4 +31,6 @@ private:
     float gaitPhase;
     unsigned long lastGaitTime;
     float pidMultiplier;
+
+    int currentAnimMode; // 0 = NONE, 1 = WAVE
 };

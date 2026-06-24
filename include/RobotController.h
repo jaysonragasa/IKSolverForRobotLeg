@@ -16,12 +16,13 @@ public:
     void update();
     void updateHardware();
     
-    // IK State setters
-    void setIK(float tx, float ty, float tz);
+    // Set global IK target pose
+    void setIK(float tx, float ty, float tz, float tpitch = 0.0f, float troll = 0.0f);
     void setRC(float t, float y, float p, float r, float s);
     void setPID(float p, float i, float d);
     void setIMUDeadband(float db);
     void setToggles(bool autoBalance, bool pidEnabled);
+    void setAnimation(int mode);
     void setLogicalOffset(int leg, int joint, float offset);
     float getLogicalOffset(int leg, int joint);
 
@@ -36,6 +37,8 @@ public:
     float getTX() { return tX; }
     float getTY() { return tY; }
     float getTZ() { return tZ; }
+    float getTPitch() { return tPitch; }
+    float getTRoll() { return tRoll; }
     
     bool getAutoBalance() { return preferences.getBool("ab_en", false); }
     bool getPIDEnabled() { return preferences.getBool("pid_en", false); }
@@ -52,8 +55,11 @@ private:
     Preferences preferences;
 
     // Current global IK state
-    float tX, tY, tZ;
-    float oC, oF, oT;
+    // Target IK pose (for smooth interpolation)
+    float targetTX, targetTY, targetTZ, targetTPitch, targetTRoll;
+
+    // Current interpolated IK pose
+    float tX, tY, tZ, tPitch, tRoll;
 
     // Cached angles for display
     LegAngles currentAngles[4];

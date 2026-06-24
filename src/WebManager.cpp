@@ -44,6 +44,7 @@ void WebManager::setupRoutes() {
     server.on("/calibrate", HTTP_GET, [this]() { handleCalibrate(); });
     server.on("/offset", HTTP_GET, [this]() { handleOffset(); });
     server.on("/toggle", HTTP_GET, [this]() { handleToggle(); });
+    server.on("/anim", HTTP_GET, [this]() { handleAnim(); });
     server.on("/state", HTTP_GET, [this]() { handleState(); });
 }
 
@@ -52,13 +53,12 @@ void WebManager::handleRoot() {
 }
 
 void WebManager::handleIK() {
-    float tx = 0, ty = -80, tz = 28;
-
-    if (server.hasArg("x")) tx = server.arg("x").toFloat();
-    if (server.hasArg("y")) ty = server.arg("y").toFloat();
-    if (server.hasArg("z")) tz = server.arg("z").toFloat();
-
-    robot.setIK(tx, ty, tz);
+    float x = server.hasArg("x") ? server.arg("x").toFloat() : robot.getTX();
+    float y = server.hasArg("y") ? server.arg("y").toFloat() : robot.getTY();
+    float z = server.hasArg("z") ? server.arg("z").toFloat() : robot.getTZ();
+    float p = server.hasArg("p") ? server.arg("p").toFloat() : robot.getTPitch();
+    float r = server.hasArg("r") ? server.arg("r").toFloat() : robot.getTRoll();
+    robot.setIK(x, y, z, p, r);
     server.send(200, "text/plain", "OK");
 }
 
@@ -134,10 +134,18 @@ void WebManager::handleToggle() {
     server.send(200, "text/plain", "OK");
 }
 
+void WebManager::handleAnim() {
+    if (server.hasArg("mode")) {
+        int mode = server.arg("mode").toInt();
+        robot.setAnimation(mode);
+    }
+    server.send(200, "text/plain", "OK");
+}
+
 void WebManager::handleState() {
     String json = "{";
     
-    json += "\"ik\":[" + String(robot.getTX()) + "," + String(robot.getTY()) + "," + String(robot.getTZ()) + "],";
+    json += "\"ik\":[" + String(robot.getTX()) + "," + String(robot.getTY()) + "," + String(robot.getTZ()) + "," + String(robot.getTPitch()) + "," + String(robot.getTRoll()) + "],";
     json += "\"ab\":" + String(robot.getAutoBalance() ? "true" : "false") + ",";
     json += "\"pid_en\":" + String(robot.getPIDEnabled() ? "true" : "false") + ",";
     json += "\"pid\":[" + String(robot.getKp()) + "," + String(robot.getKi()) + "," + String(robot.getKd()) + "],";

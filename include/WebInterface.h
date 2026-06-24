@@ -48,7 +48,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <!-- Top Header -->
     <div class="ui-layer top-4 left-4 panel p-3 flex items-center space-x-3">
         <div>
-            <h1 class="text-sm font-bold text-blue-400">ESP32 Dog Leg</h1>
+            <h1 class="text-sm font-bold text-blue-400">ASKALBOT RC</h1>
             <div class="flex items-center space-x-1 mt-0.5">
                 <span id="connDot" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
                 <span id="connText" class="text-[9px] text-gray-400 uppercase tracking-wider">Disconnected</span>
@@ -57,19 +57,28 @@ const char index_html[] PROGMEM = R"rawliteral(
     </div>
 
     <!-- Top Right Actions -->
+    <!-- Top Left: Poses (Below Status) -->
+    <div class="ui-layer top-28 left-4 flex flex-col space-y-3">
+        <button onclick="setPose(-26, -31, 38, 0, 0)" class="panel px-4 py-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)]">🛌 Lie Down</button>
+        <button onclick="setPose(0, -70, 28, -35, 0)" class="panel px-4 py-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)]">🪑 Sit</button>
+        <button onclick="wave()" class="panel px-4 py-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)]">🐾 Wave</button>
+        <button onclick="setPose(0, -100, 28, 0, 0)" class="panel px-4 py-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-[0_0_10px_rgba(0,0,0,0.5)]">🐕 Stand Up</button>
+    </div>
+
+    <!-- Top Right: Config -->
     <div class="ui-layer top-4 right-4 flex space-x-2">
         <button onclick="openModal('setup')" class="panel px-4 py-3 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95">⚙️ Setup</button>
         <button onclick="openModal('tune')" class="panel px-4 py-3 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95">🎛️ Tuning</button>
     </div>
 
     <!-- Bottom Left: Joystick -->
-    <div class="ui-layer bottom-6 left-6 flex flex-col items-center">
+    <div id="joyLeftContainer" class="ui-layer bottom-6 left-6 flex flex-col items-center">
         <span class="text-[10px] text-gray-400 mb-2 font-bold tracking-wider drop-shadow-md">THROTTLE / YAW</span>
         <canvas id="joyLeft" width="250" height="250" class="panel rounded-full touch-none"></canvas>
     </div>
 
     <!-- Bottom Right: Joystick -->
-    <div class="ui-layer bottom-6 right-6 flex flex-col items-center">
+    <div id="joyRightContainer" class="ui-layer bottom-6 right-6 flex flex-col items-center">
         <span class="text-[10px] text-gray-400 mb-2 font-bold tracking-wider drop-shadow-md">PITCH / ROLL</span>
         <canvas id="joyRight" width="250" height="250" class="panel rounded-full touch-none"></canvas>
     </div>
@@ -85,9 +94,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             <button onclick="setGait('stop')" class="btn-gait !bg-red-900 !border-red-700 !text-red-300">STOP</button>
             <button onclick="setGait('strafe_right')" class="btn-gait">STR R</button>
             
-            <div></div>
+            <button onclick="toggleJoy('L')" class="btn-gait !bg-gray-800 !text-gray-400">JS-L</button>
             <button onclick="setGait('backward')" class="btn-gait">BACK</button>
-            <div></div>
+            <button onclick="toggleJoy('R')" class="btn-gait !bg-gray-800 !text-gray-400">JS-R</button>
         </div>
         
         <div class="flex space-x-2 w-full">
@@ -113,6 +122,8 @@ const char index_html[] PROGMEM = R"rawliteral(
                         <div><div class="flex justify-between text-xs mb-1"><label>X (Forward)</label><span id="valX">0 mm</span></div><input type="range" id="sliderX" min="-60" max="60" value="0"></div>
                         <div><div class="flex justify-between text-xs mb-1"><label>Y (Vertical)</label><span id="valY">-100 mm</span></div><input type="range" id="sliderY" min="-120" max="-30" value="-100"></div>
                         <div><div class="flex justify-between text-xs mb-1"><label>Z (Lateral)</label><span id="valZ">28 mm</span></div><input type="range" id="sliderZ" min="-20" max="60" value="28"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Pitch</label><span id="valPitch">0 &deg;</span></div><input type="range" id="sliderPitch" min="-45" max="45" value="0"></div>
+                        <div><div class="flex justify-between text-xs mb-1"><label>Roll</label><span id="valRoll">0 &deg;</span></div><input type="range" id="sliderRoll" min="-30" max="30" value="0"></div>
                     </div>
                 </div>
 
@@ -170,6 +181,15 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         function closeModal() {
             document.getElementById('modalOverlay').style.display = 'none';
+        }
+
+        function setPose(x, y, z, p, r) {
+            fetch('/anim?mode=0');
+            fetch(`/pose?x=${x}&y=${y}&z=${z}&p=${p}&r=${r}`);
+        }
+
+        function wave() {
+            fetch('/anim?mode=1');
         }
 
         function syncToggles() {
@@ -257,12 +277,13 @@ const char index_html[] PROGMEM = R"rawliteral(
                 
                 // IK Pose
                 if (data.ik) {
-                    let axes = ['X', 'Y', 'Z'];
-                    for (let i = 0; i < 3; i++) {
+                    let axes = ['X', 'Y', 'Z', 'Pitch', 'Roll'];
+                    let units = [' mm', ' mm', ' mm', '\xB0', '\xB0'];
+                    for (let i = 0; i < 5; i++) {
                         let s = document.getElementById('slider' + axes[i]);
                         if (s) {
                             s.value = data.ik[i];
-                            document.getElementById('val' + axes[i]).innerText = data.ik[i] + ' mm';
+                            document.getElementById('val' + axes[i]).innerText = data.ik[i] + units[i];
                         }
                     }
                 }
@@ -373,6 +394,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         let isGaitActive = false;
 
         function setGait(cmd) {
+            fetch('/anim?mode=0'); // Clear any animation
             if (cmd === 'stop') {
                 isGaitActive = false;
                 rcState = { t: 0, y: 0, p: 0, r: 0, s: 0 };
@@ -387,6 +409,16 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         function calibrate() { fetch('/calibrate'); }
+
+        function toggleJoy(side) {
+            if (side === 'L') {
+                const el = document.getElementById('joyLeftContainer');
+                el.style.display = (el.style.display === 'none') ? 'flex' : 'none';
+            } else {
+                const el = document.getElementById('joyRightContainer');
+                el.style.display = (el.style.display === 'none') ? 'flex' : 'none';
+            }
+        }
 
         function initJoystick(canvasId, isLeft) {
             const canvas = document.getElementById(canvasId);
@@ -533,10 +565,10 @@ const char index_html[] PROGMEM = R"rawliteral(
             }
         }, 100);
 
-        function sendToESP32(tx, ty, tz) {
+        function sendToESP32(tx, ty, tz, tp, tr) {
             clearTimeout(sendTimeout);
             sendTimeout = setTimeout(() => {
-                fetch(`/ik?x=${tx}&y=${ty}&z=${tz}`)
+                fetch(`/ik?x=${tx}&y=${ty}&z=${tz}&p=${tp}&r=${tr}`)
                 .then(r => {
                     if (r.ok) {
                         document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
@@ -550,14 +582,39 @@ const char index_html[] PROGMEM = R"rawliteral(
             }, 50); 
         }
 
+        function wave() {
+            setPose(0, -70, 28, -35, 0); // Sit
+            setTimeout(() => { fetch('/anim?mode=1'); }, 2000); // Wait 2 seconds for robot to sit securely before lifting leg
+        }
+
+        function setPose(x, y, z, p, r) {
+            fetch('/anim?mode=0'); // Clear any animation
+            document.getElementById('sliderX').value = x;
+            document.getElementById('sliderY').value = y;
+            document.getElementById('sliderZ').value = z;
+            document.getElementById('sliderPitch').value = p;
+            document.getElementById('sliderRoll').value = r;
+            document.getElementById('valX').innerText = x + ' mm';
+            document.getElementById('valY').innerText = y + ' mm';
+            document.getElementById('valZ').innerText = z + ' mm';
+            document.getElementById('valPitch').innerText = p + '\xB0';
+            document.getElementById('valRoll').innerText = r + '\xB0';
+            updateSimulation();
+            sendToESP32(x, y, z, p, r);
+        }
+
         function updateSimulation() {
             const tx = parseFloat(document.getElementById('sliderX').value);
             const ty = parseFloat(document.getElementById('sliderY').value);
             const tz = parseFloat(document.getElementById('sliderZ').value);
+            const tp = parseFloat(document.getElementById('sliderPitch').value);
+            const tr = parseFloat(document.getElementById('sliderRoll').value);
 
             document.getElementById('valX').innerText = tx + ' mm';
             document.getElementById('valY').innerText = ty + ' mm';
             document.getElementById('valZ').innerText = tz + ' mm';
+            document.getElementById('valPitch').innerText = tp + '\xB0';
+            document.getElementById('valRoll').innerText = tr + '\xB0';
 
             targetMarker.position.set(tx, ty, tz);
             const ik = solveDogIK(tx, ty, tz);
@@ -566,12 +623,12 @@ const char index_html[] PROGMEM = R"rawliteral(
             femurGroup.rotation.z = ik.rad.f; 
             tibiaGroup.rotation.z = -ik.rad.t; 
 
-            sendToESP32(tx, ty, tz);
+            sendToESP32(tx, ty, tz, tp, tr);
         }
 
-        document.getElementById('sliderX').addEventListener('input', updateSimulation);
-        document.getElementById('sliderY').addEventListener('input', updateSimulation);
-        document.getElementById('sliderZ').addEventListener('input', updateSimulation);
+        ['X', 'Y', 'Z', 'Pitch', 'Roll'].forEach(axis => {
+            document.getElementById('slider' + axis).addEventListener('input', updateSimulation);
+        });
 
         function updatePID() {
             const p = parseFloat(document.getElementById('sliderKp').value);

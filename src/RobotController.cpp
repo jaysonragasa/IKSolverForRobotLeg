@@ -3,7 +3,7 @@
 #include <WiFi.h>
 
 RobotController::RobotController() 
-    : gaitController(servoController), tX(0), tY(-100), tZ(28) {}
+    : gaitController(servoController), tX(0), tY(-100), tZ(28), tPitch(0), tRoll(0) {}
 
 void RobotController::begin() {
     // Explicitly start I2C on pins 21 and 22 for ESP32
@@ -18,9 +18,11 @@ void RobotController::begin() {
 
     // Load IK Target Pose
     preferences.begin("robot", false);
-    tX = preferences.getFloat("ik_tx", 0.0f);
-    tY = preferences.getFloat("ik_ty", -100.0f);
-    tZ = preferences.getFloat("ik_tz", 28.0f);
+    targetTX = tX = preferences.getFloat("ik_tx", 0.0f);
+    targetTY = tY = preferences.getFloat("ik_ty", -100.0f);
+    targetTZ = tZ = preferences.getFloat("ik_tz", 28.0f);
+    targetTPitch = tPitch = preferences.getFloat("ik_p", 0.0f);
+    targetTRoll = tRoll = preferences.getFloat("ik_r", 0.0f);
 
     // Load PID values from NVS
     float p = preferences.getFloat("pid_p", 1.0f);
@@ -55,11 +57,19 @@ void RobotController::begin() {
 void RobotController::update() {
     imuManager.update();
     
+    // Smoothly interpolate current IK pose towards the target pose
+    // At ~100Hz loop, a factor of 0.03 gives a gentle ~1 second smooth transition
+    tX += (targetTX - tX) * 0.03f;
+    tY += (targetTY - tY) * 0.03f;
+    tZ += (targetTZ - tZ) * 0.03f;
+    tPitch += (targetTPitch - tPitch) * 0.03f;
+    tRoll += (targetTRoll - tRoll) * 0.03f;
+
     // Pass the calculated absolute body orientation down to the physics engine
     gaitController.setIMU(imuManager.getPitch(), imuManager.getRoll());
     gaitController.setIMUGyro(imuManager.getGyroPitchRate(), imuManager.getGyroRollRate());
     
-    gaitController.update(tX, tY, tZ);
+    gaitController.update(tX, tY, tZ, tPitch, tRoll);
 
     // Track Loop Hz and update OLED every 1 second
     frameCount++;
@@ -76,11 +86,17 @@ void RobotController::update() {
     }
 }
 
-void RobotController::setIK(float tx, float ty, float tz) {
-    tX = tx; tY = ty; tZ = tz;
+void RobotController::setIK(float tx, float ty, float tz, float tpitch, float troll) {
+    targetTX = tx; 
+    targetTY = ty; 
+    targetTZ = tz;
+    targetTPitch = tpitch;
+    targetTRoll = troll;
     preferences.putFloat("ik_tx", tx);
     preferences.putFloat("ik_ty", ty);
     preferences.putFloat("ik_tz", tz);
+    preferences.putFloat("ik_p", tpitch);
+    preferences.putFloat("ik_r", troll);
 }
 
 void RobotController::setRC(float t, float y, float p, float r, float s) {
@@ -103,6 +119,10 @@ void RobotController::setToggles(bool autoBal, bool pidEn) {
     gaitController.setToggles(autoBal, pidEn);
     preferences.putBool("ab_en", autoBal);
     preferences.putBool("pid_en", pidEn);
+}
+
+void RobotController::setAnimation(int mode) {
+    gaitController.setAnimation(mode);
 }
 
 void RobotController::setLogicalOffset(int leg, int joint, float offset) {

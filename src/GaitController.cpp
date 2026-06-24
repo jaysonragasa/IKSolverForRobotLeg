@@ -7,7 +7,7 @@ GaitController::GaitController(ServoController& servoController)
     : servoController(servoController), rcThrottle(0), rcYaw(0), rcPitch(0), rcRoll(0), rcStrafe(0), 
       imuPitch(0), imuRoll(0), gyroPitchRate(0), gyroRollRate(0), imuDeadband(0.0f),
       kp(1.0f), ki(0.0f), kd(0.0f), integralPitch(0), integralRoll(0),
-      gaitPhase(0.0f), lastGaitTime(0), pidMultiplier(1.0f) {}
+      gaitPhase(0.0f), lastGaitTime(0), pidMultiplier(1.0f), currentAnimMode(0) {}
 
 void GaitController::setRC(float t, float y, float p, float r, float s) {
     rcThrottle = t;
@@ -42,7 +42,11 @@ void GaitController::setToggles(bool autoBal, bool pid) {
     pidEnabled = pid;
 }
 
-void GaitController::update(float baseX, float baseY, float baseZ) {
+void GaitController::setAnimation(int animMode) {
+    currentAnimMode = animMode;
+}
+
+void GaitController::update(float baseX, float baseY, float baseZ, float targetPitch, float targetRoll) {
     unsigned long now = millis();
     float dt = (now - lastGaitTime) / 1000.0f;
     lastGaitTime = now;
@@ -118,8 +122,8 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
         float z = baseZ;
 
         // --- PITCH & ROLL (Manual + Auto-Balance Blending) ---
-        float manualPitchOffset = s_pitch * 40.0f; // Pitch max 40mm
-        float manualRollOffset  = s_roll * 40.0f;
+        float manualPitchOffset = (s_pitch * 40.0f) + targetPitch; // Pitch max 40mm from RC + base target
+        float manualRollOffset  = (s_roll * 40.0f) + targetRoll;
 
         float pitchOffset = manualPitchOffset;
         float rollOffset  = manualRollOffset;
@@ -222,6 +226,18 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
             // Apply the same bounce phase to all legs simultaneously
             float flexY = (cos(legPhase * 2.0f * PI) - 1.0f) * 10.0f * moveSpeed; 
             y += flexY;
+        }
+
+        // --- ANIMATION OVERRIDES ---
+        if (currentAnimMode == 1) { // 1 = WAVE
+            if (i == 0) {
+                // Front Left: Brace / Stretch
+                z += -60.0f; // Widen stance
+            } else if (i == 1) {
+                // Front Right: Lift and Wave
+                y += -60.0f; // Lift high
+                x += sin(now / 150.0f) * 35.0f; // Wave forward and backward
+            }
         }
 
         LegAngles angles = IKSolver::calculate(x, y, z, 0, 0, 0);
