@@ -23,12 +23,25 @@ In hardware prototyping, physical wire routing is rarely perfectly sequential. R
 The `LEGS[4]` array solves this by providing a software abstraction matrix. The physics engine always iterates sequentially through Legs 0 to 3 (FL, FR, HL, HR). When it needs to move the Front-Left Coxa, it simply asks for `LEGS[0].coxa`. The code resolves this to physical pin `8`. If the builder accidentally plugs the leg into pins `0, 1, 2`, they only need to update this matrix; the physics engine remains completely untouched.
 
 ### Safety Limits & Inversions (`LEG_CALIBRATIONS[4]`)
-RC servos are "dumb" actuators. If commanded to move beyond their physical capabilities or geometric limits, they will draw extreme stall currents (potentially browning-out the ESP32) and quickly strip their internal gears.
+RC servos are "dumb" actuators. If commanded to move beyond their physical capabilities or geometric limits, they will draw extreme stall currents (potentially browning-out the ESP32) and quickly strip their internal gears. The `LEG_CALIBRATIONS` array provides a software abstraction layer over these imperfect physical actuators. 
 
-The `LEG_CALIBRATIONS` array enforces strict mechanical boundaries *per joint*:
-1.  **`maxAngle`**: Clamps the output before it hits the mechanical stop of the servo casing or linkage.
-2.  **`invert`**: Robot legs are mirrored across the sagittal plane. Instead of the `GaitController` writing complex `if (isLeftSide) { angle = 180 - angle }` logic, the `invert` flag allows the physics engine to calculate everything symmetrically. The `ServoController` driver layer handles the hardware-specific inversions transparently.
-3.  **`offset`**: A zero-point calibration trim. Servo splines are physical teeth, meaning a servo horn can rarely be attached at exactly 90.0 degrees perfectly square to the chassis. This offset provides sub-degree software trim compensation.
+Crucially, this calibration array is mapped by **Logical Leg**, not by Physical Pin. Because of the `LEGS` mapping matrix defined earlier, you can freely change which PCA9685 pins the legs are plugged into, and the calibrations will automatically follow the correct leg.
+
+The array enforces strict mechanical boundaries *per joint* using the `ServoCalib` struct `{maxAngle, invert, enabled, offset}`:
+
+1.  **`maxAngle` (e.g., `148.0f`)**: Clamps the output before it hits the mechanical stop of the servo casing or the linkage geometry. 
+    * *Example*: Even if the IK solver mathematically determines the Tibia needs to bend to 160° to reach a target, the `ServoController` will intercept this and clamp it to `148.0°` to prevent the servo horn from physically crashing into the femur bracket.
+
+2.  **`invert` (e.g., `1` or `-1`)**: Robot legs are mirrored across the sagittal (left/right) plane. 
+    * *Example*: When the robot needs to walk forward, the Front-Left and Front-Right femurs both need to rotate "forward". Physically, because the servos are mounted as mirror images of each other, one servo must rotate clockwise while the other rotates counter-clockwise.
+    * Instead of the `GaitController` writing complex, messy logic like `if (isLeftSide) { angle = 180 - angle; }`, the `invert` flag allows the physics engine to calculate everything symmetrically (assuming + angles always mean "forward" or "up"). The `ServoController` driver layer reads this `invert` flag and handles the hardware-specific mirroring transparently.
+
+3.  **`enabled` (e.g., `1` or `0`)**: A simple software kill-switch for a specific joint.
+    * *Example*: Setting this to `0` prevents the PCA9685 from sending a PWM signal to that specific pin. This causes the servo to go "limp" (unpowered), which is extremely useful during physical assembly when you need to manually turn a joint without fighting the motor's holding torque, or for isolating a broken servo during debugging.
+
+4.  **`offset` (e.g., `0.0f`)**: A zero-point calibration trim. 
+    * *Example*: Servo splines (the gears the horn attaches to) have discrete physical teeth. When attaching the leg horn to the servo, it is physically impossible to align it perfectly to `90.0°` relative to the chassis; it might snap into place at `87.5°` or `92.5°`. 
+    * The `offset` allows the builder to assemble the robot "as close as possible" physically, and then use this floating-point value to digitally trim the joint so the robot stands perfectly level. If a leg droops slightly, setting the offset to `2.5f` will correct the physical error without needing to rebuild the leg.
 
 ## 3. Geometric Constants (`L_COXA`, `L_FEMUR`, `L_TIBIA`)
 ```cpp
