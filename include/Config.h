@@ -27,19 +27,23 @@ namespace Config {
         uint8_t tibia;  ///< Pin index for Knee Pitch
     };
 
-    // Pin Mappings: Front-Left, Front-Right, Hind-Left, Hind-Right
+    // --- Logical-to-Physical Pin Mapping ---
+    // The physics engine iterates legs 0 through 3 (FL, FR, HL, HR).
+    // This matrix abstracts the messy reality of physical wiring.
+    // Instead of forcing the builder to meticulously route wires sequentially into the PCA9685,
+    // they can plug the legs into whichever pin groups are physically closest or easiest to route.
+    // The software dynamically looks up the target pin here.
+    //
+    // Previously, the logical expectation was sequential:
+    // FL={0,1,2}, FR={4,5,6}, HL={8,9,10}, HR={12,13,14}
+    // 
+    // The current physical reality is mapped below:
     constexpr LegPins LEGS[4] = {
-        {8, 9, 10},   // Front-Left (Group 3)
-        {4, 5, 6},    // Front-Right (Group 2)
-        {12, 13, 14}, // Hind-Left (Group 4)
-        {0, 1, 2}     // Hind-Right (Group 1)
+        {8, 9, 10},   // Front-Left  (Physical Group 3)
+        {4, 5, 6},    // Front-Right (Physical Group 2)
+        {12, 13, 14}, // Hind-Left   (Physical Group 4)
+        {0, 1, 2}     // Hind-Right  (Physical Group 1)
     };
-
-// Original config
-// {0, 1, 2},    // Front-Left
-// {4, 5, 6},    // Front-Right
-// {8, 9, 10},   // Hind-Left
-// {12, 13, 14}  // Hind-Right
 
     /**
      * @struct ServoCalib

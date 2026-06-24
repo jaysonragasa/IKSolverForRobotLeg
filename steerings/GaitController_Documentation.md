@@ -54,7 +54,7 @@ A full leg cycle is divided into two phases:
     float move = -cos(swingProgress * PI); // Accelerate X/Z vector
     ```
 2.  **Stance Phase (legPhase >= 0.5):** The foot is planted on the ground. The leg pushes backward relative to the chassis, propelling the robot forward.
-    ```cpp
+    ```cppe
     float move = cos(stanceProgress * PI); // Sweep backward
     ```
 
