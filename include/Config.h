@@ -51,27 +51,27 @@ namespace Config {
     constexpr LegCalib LEG_CALIBRATIONS[4] = {
         // Front-Left
         { 
-            {147.0f, -1, 1, 0.0f}, // Coxa
-            {147.0f,  1, 1, 0.0f}, // Femur
-            {147.0f, -1, 1, 0.0f}  // Tibia
+            {148.0f, -1, 1, 0.0f}, // Coxa
+            {148.0f,  1, 1, 0.0f}, // Femur
+            {149.0f, -1, 1, 0.0f}  // Tibia
         },
         // Front-Right
         { 
-            {147.0f,  1, 1, 0.0f}, // Coxa
+            {148.0f,  1, 1, 0.0f}, // Coxa
             {147.0f, -1, 1, 0.0f}, // Femur
             {147.0f,  1, 1, 0.0f}  // Tibia
         },
         // Hind-Left
         { 
             {149.0f,  1, 1, 0.0f}, // Coxa
-            {147.0f,  1, 1, 0.0f}, // Femur
-            {146.0f, -1, 1, 0.0f}  // Tibia
+            {148.0f,  1, 1, 0.0f}, // Femur
+            {149.0f, -1, 1, 0.0f}  // Tibia
         },
         // Hind-Right
         { 
             {148.0f, -1, 1, 0.0f}, // Coxa
-            {147.0f, -1, 1, 0.0f}, // Femur
-            {148.0f,  1, 1, 0.0f}  // Tibia
+            {149.0f, -1, 1, 0.0f}, // Femur
+            {149.0f,  1, 1, 0.0f}  // Tibia
         }
     };
 

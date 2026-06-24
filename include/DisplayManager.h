@@ -8,10 +8,9 @@ public:
     DisplayManager();
     void begin();
     
-    // Updates the OLED with IP and three gauge values.
-    void update(float coxa, float femur, float tibia, bool wifiConnected, const char* ipAddress);
+    // Updates the OLED with IP and system stats
+    void update(float loopHz, uint32_t freeRam, bool wifiConnected, const char* ipAddress);
 
 private:
-    void drawGauge(int x, int y, int r, float angle, const char *label);
     Adafruit_SSD1306 _display;
 };

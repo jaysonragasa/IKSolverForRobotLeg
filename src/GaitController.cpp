@@ -218,14 +218,10 @@ void GaitController::update(float baseX, float baseY, float baseZ) {
             }
             z += catWalkZ;
             
-            // Shoulder / Spine Flexion (Pitching Bounce)
-            float flexY = 0;
-            if (i == 0 || i == 1) { 
-                flexY = (cos(legPhase * 2.0f * PI) - 1.0f) * 10.0f * moveSpeed; 
-            } else { 
-                flexY = (-cos(legPhase * 2.0f * PI) - 1.0f) * 10.0f * moveSpeed; 
-            }
-            //y += flexY;
+            // Shoulder / Spine Flexion (Pogo Bounce)
+            // Apply the same bounce phase to all legs simultaneously
+            float flexY = (cos(legPhase * 2.0f * PI) - 1.0f) * 10.0f * moveSpeed; 
+            y += flexY;
         }
 
         LegAngles angles = IKSolver::calculate(x, y, z, 0, 0, 0);

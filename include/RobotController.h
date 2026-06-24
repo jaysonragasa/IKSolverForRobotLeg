@@ -57,4 +57,9 @@ private:
 
     // Cached angles for display
     LegAngles currentAngles[4];
+
+    // System stats tracking
+    uint32_t lastDisplayUpdate = 0;
+    uint32_t frameCount = 0;
+    float loopHz = 0.0f;
 };

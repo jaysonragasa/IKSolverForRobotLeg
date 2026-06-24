@@ -60,6 +60,20 @@ void RobotController::update() {
     gaitController.setIMUGyro(imuManager.getGyroPitchRate(), imuManager.getGyroRollRate());
     
     gaitController.update(tX, tY, tZ);
+
+    // Track Loop Hz and update OLED every 1 second
+    frameCount++;
+    uint32_t now = millis();
+    if (now - lastDisplayUpdate >= 1000) {
+        loopHz = (float)frameCount / ((now - lastDisplayUpdate) / 1000.0f);
+        uint32_t freeRam = ESP.getFreeHeap();
+        bool isConnected = (WiFi.status() == WL_CONNECTED);
+        
+        displayManager.update(loopHz, freeRam, isConnected, WiFi.localIP().toString().c_str());
+        
+        frameCount = 0;
+        lastDisplayUpdate = now;
+    }
 }
 
 void RobotController::setIK(float tx, float ty, float tz) {
@@ -126,10 +140,6 @@ void RobotController::updateHardware() {
         servoController.setAngle(Config::LEGS[i].tibia, angles.tibia);
         currentAngles[i] = angles;
     }
-
-    bool isConnected = (WiFi.status() == WL_CONNECTED);
-    displayManager.update(angles.coxa, angles.femur, angles.tibia, isConnected,
-                          WiFi.localIP().toString().c_str());
 }
 
 float RobotController::getCoxaAngle(int legIndex) const { return currentAngles[legIndex].coxa; }

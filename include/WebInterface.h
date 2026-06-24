@@ -498,18 +498,39 @@ const char index_html[] PROGMEM = R"rawliteral(
             window.addEventListener('touchmove', handleMove, {passive: false});
         }
 
+        let lastRcState = { t: 0, y: 0, p: 0, r: 0, s: 0 };
+        let lastPingTime = 0;
+
         setInterval(() => {
             if (isGaitActive) return; 
-            fetch(`/rc?t=${rcState.t.toFixed(2)}&y=${rcState.y.toFixed(2)}&p=${rcState.p.toFixed(2)}&r=${rcState.r.toFixed(2)}&s=${rcState.s.toFixed(2)}`)
-            .then(r => {
-                if (r.ok) {
-                    document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
-                    document.getElementById('connText').innerText = "RC Connected";
-                }
-            }).catch(e => {
-                document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
-                document.getElementById('connText').innerText = "Disconnected";
-            });
+
+            let changed = (
+                rcState.t !== lastRcState.t ||
+                rcState.y !== lastRcState.y ||
+                rcState.p !== lastRcState.p ||
+                rcState.r !== lastRcState.r ||
+                rcState.s !== lastRcState.s
+            );
+
+            let now = Date.now();
+            
+            // Only spam the ESP32 if the joystick actually moved. 
+            // Otherwise, just send a heartbeat every 2 seconds to keep connection UI green.
+            if (changed || now - lastPingTime > 2000) {
+                lastPingTime = now;
+                lastRcState = { ...rcState };
+                
+                fetch(`/rc?t=${rcState.t.toFixed(2)}&y=${rcState.y.toFixed(2)}&p=${rcState.p.toFixed(2)}&r=${rcState.r.toFixed(2)}&s=${rcState.s.toFixed(2)}`)
+                .then(r => {
+                    if (r.ok) {
+                        document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
+                        document.getElementById('connText').innerText = "RC Connected";
+                    }
+                }).catch(e => {
+                    document.getElementById('connDot').className = "w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]";
+                    document.getElementById('connText').innerText = "Disconnected";
+                });
+            }
         }, 100);
 
         function sendToESP32(tx, ty, tz) {
