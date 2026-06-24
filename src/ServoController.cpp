@@ -1,6 +1,10 @@
 #include "ServoController.h"
 #include "Config.h"
 
+/**
+ * @brief Constructs the ServoController and loads hardware calibration bounds
+ * from the Config mappings to ensure startup safety.
+ */
 ServoController::ServoController() : _pwm(Adafruit_PWMServoDriver()) {
     // Default everything to basic values
     for (int i = 0; i < 16; i++) {
@@ -42,6 +46,10 @@ ServoController::ServoController() : _pwm(Adafruit_PWMServoDriver()) {
     }
 }
 
+/**
+ * @brief Configures the PCA9685 IC.
+ * Sets the oscillator to 27MHz (for precision) and the PWM rate to 50Hz (for RC servos).
+ */
 void ServoController::begin() {
   _pwm.begin();
   _pwm.setOscillatorFrequency(27000000);
@@ -84,6 +92,14 @@ float ServoController::getOffset(uint8_t pin) const {
   return 0.0f;
 }
 
+/**
+ * @brief Master command function for servos.
+ * Modifies the angle based on physical limits, logical offsets, and inversion rules,
+ * then maps the 0-180 degree angle to the PCA9685's 12-bit tick length, transmitting via I2C.
+ * 
+ * @param pin The PCA9685 channel (0-15).
+ * @param angle The target angle in degrees.
+ */
 void ServoController::setAngle(uint8_t pin, float angle) {
   if (pin >= 16)
     return;

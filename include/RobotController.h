@@ -8,23 +8,74 @@
 #include "IMUManager.h"
 #include <Preferences.h>
 
+/**
+ * @class RobotController
+ * @brief Central state machine and hardware orchestration layer.
+ * Manages NVS persistence, physics updates, and subsystem bridging.
+ */
 class RobotController {
 public:
+    /**
+     * @brief Constructs the RobotController and initializes subsystems.
+     */
     RobotController();
 
+    /**
+     * @brief Boots hardware buses (I2C), initializes components, and loads NVS state.
+     */
     void begin();
+
+    /**
+     * @brief Main heartbeat loop. Polls IMU, drives Physics, updates Display.
+     */
     void update();
+
+    /**
+     * @brief Computes immediate IK for the current static pose and pushes to servos.
+     */
     void updateHardware();
     
-    // IK State setters
+    /**
+     * @brief Sets and saves a static absolute IK pose.
+     */
     void setIK(float tx, float ty, float tz);
+
+    /**
+     * @brief Passes RC joystick data down to the GaitController.
+     */
     void setRC(float t, float y, float p, float r, float s);
+
+    /**
+     * @brief Updates and permanently saves Auto-Balance PID tuning.
+     */
     void setPID(float p, float i, float d);
+
+    /**
+     * @brief Updates and permanently saves the IMU noise deadband threshold.
+     */
     void setIMUDeadband(float db);
+
+    /**
+     * @brief Toggles and saves Auto-Balance active states.
+     */
     void setToggles(bool autoBalance, bool pidEnabled);
+
+    /**
+     * @brief Sets and saves a mechanical zero-point calibration for a specific joint.
+     * @param leg The leg index (0-3).
+     * @param joint The joint index (0=Coxa, 1=Femur, 2=Tibia).
+     * @param offset The zero-point offset in degrees.
+     */
     void setLogicalOffset(int leg, int joint, float offset);
+
+    /**
+     * @brief Retrieves the saved calibration offset for a joint.
+     */
     float getLogicalOffset(int leg, int joint);
 
+    /**
+     * @brief Triggers the IMU zero-point leveling calibration routine.
+     */
     void calibrateIMU();
 
     // Getters for display

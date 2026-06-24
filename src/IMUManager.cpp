@@ -1,9 +1,19 @@
 #include "IMUManager.h"
 #include <math.h>
 
+/**
+ * @brief Construct a new IMUManager::IMUManager object.
+ * Initializes all variables to zero and sets the connection state to false.
+ */
 IMUManager::IMUManager() : pitch(0), roll(0), pitchOffset(0), rollOffset(0), 
                            gyroPitchRate(0), gyroRollRate(0), connected(false), lastUpdateTime(0) {}
 
+/**
+ * @brief Initializes the hardware I2C bus and the MPU6050 registers.
+ * Loads persistent calibration offsets from NVS.
+ * 
+ * @return true if successful, false otherwise.
+ */
 bool IMUManager::init() {
     // Start I2C explicitly on pins 21/22
     Wire.begin(21, 22);
@@ -28,6 +38,12 @@ bool IMUManager::init() {
     return true;
 }
 
+/**
+ * @brief Polls the MPU6050 and runs the Complementary Filter algorithm.
+ * 
+ * Computes Delta Time (dt), integrates gyro velocity, and blends with
+ * the absolute accelerometer gravity vector to output drift-free orientation.
+ */
 void IMUManager::update() {
     if (!connected) return;
 
@@ -62,6 +78,10 @@ void IMUManager::update() {
     roll  = alpha * (roll  + gyroRollRate  * dt) + (1.0f - alpha) * accelRoll;
 }
 
+/**
+ * @brief Sets the current physical pitch and roll as the new logical zero,
+ * and commits this offset to the ESP32 Non-Volatile Storage (NVS).
+ */
 void IMUManager::calibrate() {
     if (!connected) return;
 

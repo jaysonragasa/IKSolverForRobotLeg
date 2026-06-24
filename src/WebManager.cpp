@@ -3,18 +3,31 @@
 #include "Config.h"
 #include <WiFi.h>
 
+/**
+ * @brief Construct a new WebManager and binds to the RobotController on port 80.
+ */
 WebManager::WebManager(RobotController& robot) : robot(robot), server(80) {}
 
+/**
+ * @brief Attempts connection to the router and configures the HTTP routes.
+ */
 void WebManager::begin() {
     connectWiFi();
     setupRoutes();
     server.begin();
 }
 
+/**
+ * @brief Polls the HTTP server to handle incoming client requests.
+ * Must be called rapidly in the main loop to prevent request timeouts.
+ */
 void WebManager::update() {
     server.handleClient();
 }
 
+/**
+ * @brief Blocks and attempts to connect to the configured SSID.
+ */
 void WebManager::connectWiFi() {
     Serial.print("Connecting to WiFi: ");
     Serial.println(Config::SSID);
@@ -34,6 +47,9 @@ void WebManager::connectWiFi() {
     robot.updateHardware(); 
 }
 
+/**
+ * @brief Binds all URI endpoints to the specific handler methods.
+ */
 void WebManager::setupRoutes() {
     server.on("/", HTTP_GET, [this]() { handleRoot(); });
     server.on("/ik", HTTP_GET, [this]() { handleIK(); });
@@ -47,10 +63,16 @@ void WebManager::setupRoutes() {
     server.on("/state", HTTP_GET, [this]() { handleState(); });
 }
 
+/**
+ * @brief Endpoint `/`. Sends the full `WebInterface.h` HTML/JS single-page app.
+ */
 void WebManager::handleRoot() { 
     server.send(200, "text/html", index_html); 
 }
 
+/**
+ * @brief Endpoint `/pose` and `/ik`. Updates the permanent IK targets.
+ */
 void WebManager::handleIK() {
     float tx = 0, ty = -80, tz = 28;
 
@@ -62,6 +84,9 @@ void WebManager::handleIK() {
     server.send(200, "text/plain", "OK");
 }
 
+/**
+ * @brief Endpoint `/rc`. Receives joystick vectors and applies them to the GaitController.
+ */
 void WebManager::handleRC() {
     float t = 0, y = 0, p = 0, r = 0, s = 0;
     if (server.hasArg("t")) t = server.arg("t").toFloat();
@@ -134,6 +159,10 @@ void WebManager::handleToggle() {
     server.send(200, "text/plain", "OK");
 }
 
+/**
+ * @brief Endpoint `/state`. Returns a JSON string containing current physical telemetry.
+ * Used by the WebGL canvas to sync the 3D model with reality.
+ */
 void WebManager::handleState() {
     String json = "{";
     

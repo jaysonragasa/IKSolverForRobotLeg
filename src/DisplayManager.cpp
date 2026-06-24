@@ -1,21 +1,33 @@
 #include "DisplayManager.h"
 #include "Config.h"
 
+/**
+ * @brief Construct a new DisplayManager::DisplayManager object.
+ * Initializes the Adafruit SSD1306 object for a 128x64 display on I2C.
+ */
 DisplayManager::DisplayManager() 
     : _display(Config::SCREEN_WIDTH, Config::SCREEN_HEIGHT, &Wire, Config::OLED_RESET) {}
 
+/**
+ * @brief Initializes the OLED display.
+ */
 void DisplayManager::begin() {
     if (!_display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println(F("SSD1306 allocation failed"));
-    } else {
-        _display.clearDisplay();
-        _display.setTextColor(SSD1306_WHITE);
-        _display.setCursor(0, 0);
         _display.println("Booting System...");
         _display.display();
     }
 }
 
+/**
+ * @brief Updates the OLED screen with real-time telemetry.
+ * Usually called at 1Hz to prevent I2C bus bottlenecking.
+ * 
+ * @param loopHz Iterations per second of the main physics engine.
+ * @param freeRam Available Heap memory in bytes.
+ * @param wifiConnected True if Wi-Fi is actively connected.
+ * @param ipAddress The DHCP IP address of the robot.
+ */
 void DisplayManager::update(float loopHz, uint32_t freeRam, bool wifiConnected, const char* ipAddress) {
     _display.clearDisplay();
 

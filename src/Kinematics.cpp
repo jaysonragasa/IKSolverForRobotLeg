@@ -6,6 +6,21 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/**
+ * @brief Implements the Inverse Kinematics trigonometric resolution.
+ * 
+ * Uses the Law of Cosines across the Coronal and Sagittal planes to derive
+ * the exact joint angles required to reach the target 3D Cartesian coordinates.
+ * Includes singularity prevention and physical boundary clamping.
+ * 
+ * @param x X-axis offset (mm).
+ * @param y Y-axis offset (mm).
+ * @param z Z-axis offset (mm).
+ * @param offC Coxa logical offset (deg).
+ * @param offF Femur logical offset (deg).
+ * @param offT Tibia logical offset (deg).
+ * @return LegAngles 
+ */
 LegAngles IKSolver::calculate(float x, float y, float z, float offC, float offF, float offT) {
     // 1. Roll Plane (Y-Z)
     float L_yz = sqrt(y * y + z * z);

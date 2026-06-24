@@ -2,6 +2,11 @@
 
 #include <Arduino.h>
 
+/**
+ * @namespace Config
+ * @brief Contains all static hardware definitions, Wi-Fi credentials,
+ * physical chassis measurements, and default servo mapping calibrations.
+ */
 namespace Config {
     // --- WiFi Configuration ---
     constexpr const char* SSID = "corp-wifi";
@@ -12,10 +17,14 @@ namespace Config {
     constexpr uint16_t SERVO_MAX = 600;
     constexpr uint16_t SERVO_FREQ = 50;
 
+    /**
+     * @struct LegPins
+     * @brief Maps the 3 joints of a leg to their physical PCA9685 pin indices.
+     */
     struct LegPins {
-        uint8_t coxa;
-        uint8_t femur;
-        uint8_t tibia;
+        uint8_t coxa;   ///< Pin index for Shoulder Yaw
+        uint8_t femur;  ///< Pin index for Shoulder Pitch
+        uint8_t tibia;  ///< Pin index for Knee Pitch
     };
 
     // Pin Mappings: Front-Left, Front-Right, Hind-Left, Hind-Right
@@ -32,17 +41,25 @@ namespace Config {
 // {8, 9, 10},   // Hind-Left
 // {12, 13, 14}  // Hind-Right
 
+    /**
+     * @struct ServoCalib
+     * @brief Stores the physical bounds and hardware calibration for a single servo.
+     */
     struct ServoCalib {
-        float maxAngle;
-        int8_t invert;
-        int8_t enabled;
-        float offset;
+        float maxAngle; ///< Physical geometric limit of the servo
+        int8_t invert;  ///< 1 for normal rotation, -1 for mirrored rotation
+        int8_t enabled; ///< 1 to actively drive PWM, 0 to shut off power (go limp)
+        float offset;   ///< Hardcoded physical spline offset in degrees
     };
 
+    /**
+     * @struct LegCalib
+     * @brief Groups the 3 joint calibrations for a single leg.
+     */
     struct LegCalib {
-        ServoCalib coxa;
-        ServoCalib femur;
-        ServoCalib tibia;
+        ServoCalib coxa;  ///< Calibration for Coxa joint
+        ServoCalib femur; ///< Calibration for Femur joint
+        ServoCalib tibia; ///< Calibration for Tibia joint
     };
 
     // --- Servo Calibration ---

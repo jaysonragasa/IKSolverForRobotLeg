@@ -3,6 +3,10 @@
 #include "Config.h"
 #include <math.h>
 
+/**
+ * @brief Constructs a new GaitController and zeroes out telemetry and state.
+ * @param servoController Reference to the driver layer.
+ */
 GaitController::GaitController(ServoController& servoController)
     : servoController(servoController), rcThrottle(0), rcYaw(0), rcPitch(0), rcRoll(0), rcStrafe(0), 
       imuPitch(0), imuRoll(0), gyroPitchRate(0), gyroRollRate(0), imuDeadband(0.0f),
@@ -37,11 +41,25 @@ void GaitController::setIMUDeadband(float db) {
     imuDeadband = db;
 }
 
+/**
+ * @brief Toggles for balancing and PID loop usage.
+ * @param autoBal Enable auto-balance.
+ * @param pid Enable PID loop instead of raw proportional.
+ */
 void GaitController::setToggles(bool autoBal, bool pid) {
     autoBalanceEnabled = autoBal;
     pidEnabled = pid;
 }
 
+/**
+ * @brief Main physics execution loop. Runs every iteration of the main loop.
+ * Integrates IMU auto-balancing, translates joystick vectors, calculates
+ * walking gaits, handles animation overrides, and sends final targets to IK.
+ * 
+ * @param baseTx Absolute target X.
+ * @param baseTy Absolute target Y.
+ * @param baseTz Absolute target Z.
+ */
 void GaitController::update(float baseX, float baseY, float baseZ) {
     unsigned long now = millis();
     float dt = (now - lastGaitTime) / 1000.0f;

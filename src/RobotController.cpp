@@ -2,9 +2,17 @@
 #include "Config.h"
 #include <WiFi.h>
 
+/**
+ * @brief Construct a new RobotController, initializing subsystem references
+ * and zeroing out the initial IK pose.
+ */
 RobotController::RobotController() 
     : gaitController(servoController), tX(0), tY(-100), tZ(28) {}
 
+/**
+ * @brief System boot sequence. Initializes I2C, starts all hardware managers,
+ * and restores the exact previous state and calibration from NVS.
+ */
 void RobotController::begin() {
     // Explicitly start I2C on pins 21 and 22 for ESP32
     // Wire.begin(21, 22); is already called inside imuManager.init() now, 
@@ -52,6 +60,10 @@ void RobotController::begin() {
     updateHardware(); // Initial pose
 }
 
+/**
+ * @brief The primary execution loop. Must be called rapidly.
+ * Polls sensors, feeds the physics engine, and manages OLED telemetry.
+ */
 void RobotController::update() {
     imuManager.update();
     
@@ -131,6 +143,10 @@ void RobotController::calibrateIMU() {
     imuManager.calibrate();
 }
 
+/**
+ * @brief Bypasses the GaitController and instantly computes Inverse Kinematics
+ * for the current target coordinates. Used primarily during startup or static posing.
+ */
 void RobotController::updateHardware() {
     LegAngles angles = IKSolver::calculate(tX, tY, tZ, 0, 0, 0);
 
